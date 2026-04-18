@@ -177,17 +177,6 @@ export const createBooking = async (data: Omit<BookingData, "status">) => {
   return docRef.id;
 };
 
-export const subscribeToBookings = (date: string, callback: (bookings: BookingData[]) => void) => {
-  if (!db) return () => {};
-  
-  const q = query(collection(db, "bookings"), where("date", "==", date), where("status", "==", "active"));
-  
-  return onSnapshot(q, (snapshot) => {
-    const bookings = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as BookingData));
-    callback(bookings);
-  });
-};
-
 export const subscribeToBookingsRange = (startDate: string, endDate: string, callback: (bookings: BookingData[]) => void) => {
   if (!db) return () => {};
   
