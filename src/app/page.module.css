@@ -1,142 +1,172 @@
-.page {
-  --background: #fafafa;
-  --foreground: #fff;
-
-  --text-primary: #000;
-  --text-secondary: #666;
-
-  --button-primary-hover: #383838;
-  --button-secondary-hover: #f2f2f2;
-  --button-secondary-border: #ebebeb;
-
+.container {
   display: flex;
-  flex: 1;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  font-family: var(--font-geist-sans);
-  background-color: var(--background);
+  min-height: 100vh;
+  width: 100%;
 }
 
-.main {
-  display: flex;
+.leftPanel {
   flex: 1;
-  width: 100%;
+  background: linear-gradient(135deg, var(--secondary) 0%, var(--primary) 100%);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  color: white;
+  padding: 3rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.leftPanel::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image: url('https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&q=80&w=1200'); /* Abstract corporate meeting room */
+  background-size: cover;
+  background-position: center;
+  opacity: 0.2;
+  mix-blend-mode: overlay;
+}
+
+.branding {
+  position: relative;
+  z-index: 10;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  padding: 3rem;
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: var(--shadow-lg);
   max-width: 800px;
-  flex-direction: column;
-  align-items: flex-start;
-  justify-content: space-between;
-  background-color: var(--foreground);
-  padding: 120px 60px;
 }
 
-.intro {
+.logoWrapper {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
+  align-items: center;
+  gap: 2.5rem;
   text-align: left;
-  gap: 24px;
 }
 
-.intro h1 {
-  max-width: 320px;
-  font-size: 40px;
-  font-weight: 600;
-  line-height: 48px;
-  letter-spacing: -2.4px;
-  text-wrap: balance;
-  color: var(--text-primary);
+.plnLogo {
+  width: 140px;
+  height: auto;
+  filter: drop-shadow(0 4px 12px rgba(0,0,0,0.2));
+  animation: fadeInLeft 0.8s ease;
 }
 
-.intro p {
-  max-width: 440px;
-  font-size: 18px;
-  line-height: 32px;
-  text-wrap: balance;
-  color: var(--text-secondary);
+@keyframes fadeInLeft {
+  from { opacity: 0; transform: translateX(-20px); }
+  to { opacity: 1; transform: translateX(0); }
 }
 
-.intro a {
+.title {
+  font-size: 3.5rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+  letter-spacing: -0.025em;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.subtitle {
+  font-size: 1.25rem;
+  opacity: 0.9;
   font-weight: 500;
-  color: var(--text-primary);
+  max-width: 450px;
+  line-height: 1.4;
 }
 
-.ctas {
-  display: flex;
-  flex-direction: row;
-  width: 100%;
-  max-width: 440px;
-  gap: 16px;
-  font-size: 14px;
-}
-
-.ctas a {
+.rightPanel {
+  flex: 1;
   display: flex;
   justify-content: center;
   align-items: center;
-  height: 40px;
-  padding: 0 16px;
-  border-radius: 128px;
-  border: 1px solid transparent;
-  transition: 0.2s;
-  cursor: pointer;
-  width: fit-content;
+  background-color: var(--background);
+  padding: 2rem;
+}
+
+.loginCard {
+  background: var(--surface);
+  padding: 3.5rem 3rem;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  width: 100%;
+  max-width: 480px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  border: 1px solid var(--border);
+}
+
+.logoPlaceholder {
+  width: 64px;
+  height: 64px;
+  background: var(--primary-light);
+  color: var(--primary);
+  border-radius: 50%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 2rem;
+  margin-bottom: 1.5rem;
+}
+
+.loginCard h2 {
+  font-size: 1.875rem;
+  font-weight: 700;
+  color: var(--foreground);
+  margin-bottom: 0.5rem;
+}
+
+.loginSubtitle {
+  color: var(--text-muted);
+  margin-bottom: 2.5rem;
+  font-size: 1rem;
+}
+
+.googleBtn {
+  width: 100%;
+  background: white;
+  color: #3C4043;
+  border: 1px solid #DADCE0;
   font-weight: 500;
 }
 
-a.primary {
-  background: var(--text-primary);
-  color: var(--background);
-  gap: 8px;
+.googleBtn:hover {
+  background: #F8F9FA;
+  box-shadow: 0 1px 2px 0 rgba(60,64,67,0.30), 0 1px 3px 1px rgba(60,64,67,0.15);
+  transform: none;
 }
 
-a.secondary {
-  border-color: var(--button-secondary-border);
-}
-
-/* Enable hover only on non-touch devices */
-@media (hover: hover) and (pointer: fine) {
-  a.primary:hover {
-    background: var(--button-primary-hover);
-    border-color: transparent;
+@media (max-width: 768px) {
+  .container {
+    flex-direction: column;
   }
-
-  a.secondary:hover {
-    background: var(--button-secondary-hover);
-    border-color: transparent;
+  .leftPanel {
+    padding: 2rem;
+    min-height: 40vh;
   }
-}
-
-@media (max-width: 600px) {
-  .main {
-    padding: 48px 24px;
+  .title {
+    font-size: 2.5rem;
   }
-
-  .intro {
-    gap: 16px;
+  .logoWrapper {
+    gap: 1.5rem;
   }
-
-  .intro h1 {
-    font-size: 32px;
-    line-height: 40px;
-    letter-spacing: -1.92px;
+  .plnLogo {
+    width: 100px;
   }
 }
 
-@media (prefers-color-scheme: dark) {
-  .logo {
-    filter: invert();
+@media (max-width: 480px) {
+  .logoWrapper {
+    flex-direction: column;
+    text-align: center;
+    gap: 1rem;
   }
-
-  .page {
-    --background: #000;
-    --foreground: #000;
-
-    --text-primary: #ededed;
-    --text-secondary: #999;
-
-    --button-primary-hover: #ccc;
-    --button-secondary-hover: #1a1a1a;
-    --button-secondary-border: #1a1a1a;
+  .branding {
+    padding: 2rem 1.5rem;
   }
 }

@@ -1,0 +1,46 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Fungsi bantuan untuk cek role
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+    
+    function isAdmin() {
+      return request.auth != null && getUserData().role == 'admin';
+    }
+    
+    function isViewOnly() {
+      return request.auth != null && getUserData().role == 'view';
+    }
+
+    // Koleksi Users
+    match /users/{userId} {
+      allow read: if request.auth != null;
+      allow write: if isAdmin() || request.auth.uid == userId;
+    }
+
+    // Koleksi Rooms
+    match /rooms/{roomId} {
+      allow read: if request.auth != null;
+      allow write: if isAdmin();
+    }
+
+    // Koleksi Bookings
+    match /bookings/{bookingId} {
+      allow read: if request.auth != null;
+      
+      // User biasa bisa buat booking, tapi role 'view' dilarang
+      allow create: if request.auth != null && !isViewOnly();
+      
+      // Update/Delete: Admin bisa semua, User hanya bisa miliknya sendiri (kecuali field meetingLink)
+      allow update, delete: if isAdmin() || (
+        request.auth.uid == resource.data.userId && 
+        !isViewOnly() &&
+        // User dilarang mengubah field meetingLink secara manual lewat API
+        (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['meetingLink']))
+      );
+    }
+  }
+}
