@@ -79,29 +79,10 @@ export const updateUserRole = async (uid: string, newRole: "admin" | "user" | "v
 
 // ================= ROOMS =================
 
-const defaultRooms: Room[] = [
-  { id: 'physical_1', name: 'Ruang 1', type: 'physical' },
-  { id: 'physical_2', name: 'Ruang 2', type: 'physical' },
-  { id: 'physical_3', name: 'Ruang 3', type: 'physical' },
-  { id: 'physical_4', name: 'Ruang 4', type: 'physical' },
-  { id: 'physical_5', name: 'Ruang 5', type: 'physical' },
-  { id: 'online_1', name: 'Room Zoom 1', type: 'online' },
-  { id: 'online_2', name: 'Room Zoom 2', type: 'online' },
-  { id: 'online_3', name: 'Room Zoom 3', type: 'online' },
-  { id: 'online_4', name: 'Room Zoom 4', type: 'online' },
-];
-
 export const initAndGetRooms = async (): Promise<Room[]> => {
-  if (!db) return defaultRooms;
+  if (!db) return [];
   const roomsRef = collection(db, "rooms");
   const snap = await getDocs(roomsRef);
-  
-  if (snap.empty) {
-    // Initialize default rooms
-    const promises = defaultRooms.map(room => setDoc(doc(db!, "rooms", room.id), room));
-    await Promise.all(promises);
-    return defaultRooms;
-  }
   
   return snap.docs.map(doc => doc.data() as Room);
 };

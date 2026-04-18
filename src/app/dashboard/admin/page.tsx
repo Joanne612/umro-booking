@@ -259,7 +259,7 @@ export default function AdminPage() {
                         fontWeight: 700,
                         textTransform: 'uppercase'
                       }}>
-                        {room.type === 'physical' ? 'Physical' : 'Online'}
+                        {room.type === 'physical' ? 'Ruangan' : 'Online'}
                       </span>
                     </td>
                     <td style={{ padding: '1rem', fontSize: '0.875rem', color: 'var(--text-muted)' }}>

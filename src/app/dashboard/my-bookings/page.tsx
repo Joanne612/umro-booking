@@ -63,7 +63,14 @@ export default function MyBookingsPage() {
           </div>
         ) : (
           bookings.map(booking => (
-            <div key={booking.id} className={styles.card} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', opacity: booking.status === 'cancelled' ? 0.6 : 1 }}>
+            <div key={booking.id} className={styles.card} style={{ 
+              display: 'flex', 
+              justifyContent: 'space-between', 
+              alignItems: 'center', 
+              opacity: booking.status === 'cancelled' ? 0.6 : 1,
+              flexWrap: 'wrap',
+              gap: '1rem'
+            }}>
               <div>
                 <h3 style={{ fontSize: '1.125rem', fontWeight: 600, marginBottom: '0.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                   {booking.title}
