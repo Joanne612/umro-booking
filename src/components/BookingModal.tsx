@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { createBooking, updateBooking, checkBookingConflict, BookingData as FullBookingData, Room } from "@/lib/firebase/firestore";
+import { createBooking, updateBooking, checkBookingConflict, getDatesInRange, BookingData as FullBookingData, Room } from "@/lib/firebase/firestore";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/context/ToastContext";
 import styles from "../app/dashboard/dashboard.module.css";
@@ -41,6 +41,7 @@ export default function BookingModal({
   const [formData, setFormData] = useState({
     roomId: rooms[0]?.id || "",
     date: selectedDate,
+    endDate: selectedDate, // Tambahkan endDate
     title: "",
     division: "",
     participants: 1,
@@ -64,6 +65,7 @@ export default function BookingModal({
       setFormData({
         roomId: editData.roomId,
         date: editData.date,
+        endDate: editData.endDate || editData.date,
         title: editData.title,
         division: editData.division,
         participants: editData.participants,
@@ -86,6 +88,7 @@ export default function BookingModal({
       setFormData({
         roomId: rooms[0]?.id || "",
         date: selectedDate,
+        endDate: selectedDate,
         title: "",
         division: "",
         participants: 1,
@@ -141,41 +144,79 @@ export default function BookingModal({
     setLoading(true);
     try {
       const room = rooms.find(r => r.id === formData.roomId);
-      const bookingPayload = {
-        roomId: formData.roomId,
-        roomName: room?.name || "Unknown",
-        title: formData.title,
-        division: formData.division,
-        participants: Number(formData.participants),
-        date: formData.date,
-        startTime: formData.startTime,
-        endTime: formData.endTime,
-        userId: user.uid,
-        userName: user.displayName || user.email || "Unknown",
-        createdAt: editData?.createdAt || new Date(),
-        ...(formData.consumption.requested ? {
-          consumption: {
-            ...formData.consumption,
-            status: editData?.consumption?.status || "pending"
-          }
-        } : {})
-      };
+      const isMultiDay = formData.endDate > formData.date && !editData;
+      const dates = isMultiDay ? getDatesInRange(formData.date, formData.endDate) : [formData.date];
 
+      // 1. Check conflicts for ALL days first
+      for (const date of dates) {
+        const conflictOnDate = await checkBookingConflict(formData.roomId, date, formData.startTime, formData.endTime, editData?.id);
+        if (conflictOnDate) {
+          throw new Error(`Bentrok pada tanggal ${date}: Ruangan ini sudah dibooking oleh ${conflictOnDate.userName} (${conflictOnDate.startTime} - ${conflictOnDate.endTime}).`);
+        }
+      }
+
+      // 2. Process create/update
       if (editData?.id) {
+        const bookingPayload = {
+          roomId: formData.roomId,
+          roomName: room?.name || "Unknown",
+          title: formData.title,
+          division: formData.division,
+          participants: Number(formData.participants),
+          date: formData.date,
+          startTime: formData.startTime,
+          endTime: formData.endTime,
+          userId: user.uid,
+          userName: user.displayName || user.email || "Unknown",
+          createdAt: editData?.createdAt || new Date(),
+          ...(formData.consumption.requested ? {
+            consumption: {
+              ...formData.consumption,
+              status: (editData?.consumption?.status || "pending") as "pending" | "approved" | "rejected" | "completed"
+            }
+          } : {})
+        };
         await updateBooking(editData.id, bookingPayload);
         showToast("Booking berhasil diperbarui!", "success");
       } else {
-        await createBooking(bookingPayload);
+        const groupId = isMultiDay ? `group_${user.uid}_${Date.now()}` : undefined;
+        
+        for (const date of dates) {
+          const bookingPayload = {
+            roomId: formData.roomId,
+            roomName: room?.name || "Unknown",
+            title: formData.title,
+            division: formData.division,
+            participants: Number(formData.participants),
+            date: date,
+            startTime: formData.startTime,
+            endTime: formData.endTime,
+            userId: user.uid,
+            userName: user.displayName || user.email || "Unknown",
+            createdAt: new Date(),
+            groupId: groupId,
+            ...(formData.consumption.requested ? {
+              consumption: {
+                ...formData.consumption,
+                status: "pending" as "pending"
+              }
+            } : {})
+          };
+          await createBooking(bookingPayload);
+        }
+
         showToast(
-          formData.consumption.requested 
-            ? "Booking berhasil! Permintaan konsumsi sedang menunggu persetujuan Asman Umum." 
-            : "Booking berhasil dibuat!", 
+          isMultiDay 
+            ? `Berhasil membooking ${dates.length} hari!`
+            : (formData.consumption.requested 
+                ? "Booking berhasil! Permintaan konsumsi sedang menunggu persetujuan Asman Umum." 
+                : "Booking berhasil dibuat!"), 
           "success"
         );
       }
       onClose();
     } catch (error: any) {
-      showToast("Gagal memproses: " + error.message, "error");
+      showToast(error.message, "error");
     } finally {
       setLoading(false);
     }
@@ -199,15 +240,30 @@ export default function BookingModal({
             </div>
           )}
 
-          <div className={styles.formGroup}>
-            <label className={styles.formLabel}>Tanggal</label>
-            <input
-              type="date"
-              required
-              value={formData.date}
-              onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-              className={styles.textInput}
-            />
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+            <div className={styles.formGroup}>
+              <label className={styles.formLabel}>Tanggal Mulai</label>
+              <input 
+                type="date" 
+                required 
+                value={formData.date} 
+                onChange={e => setFormData({...formData, date: e.target.value})} 
+                className={styles.textInput} 
+              />
+            </div>
+            {!editData && (
+              <div className={styles.formGroup}>
+                <label className={styles.formLabel}>Sampai Tanggal</label>
+                <input 
+                  type="date" 
+                  required 
+                  min={formData.date}
+                  value={formData.endDate} 
+                  onChange={e => setFormData({...formData, endDate: e.target.value})} 
+                  className={styles.textInput} 
+                />
+              </div>
+            )}
           </div>
 
           <div className={styles.formGroup}>

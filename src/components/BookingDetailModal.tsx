@@ -134,7 +134,23 @@ export default function BookingDetailModal({ booking, onClose, onRefresh }: Book
                   </div>
                   <div>
                     <div style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '0.25rem' }}>Tanggal</div>
-                    <div style={{ fontWeight: 500 }}>📅 {booking.date}</div>
+                    <div style={{ fontWeight: 500 }}>
+                      📅 {booking.date}
+                      {booking.groupId && (
+                        <span style={{ 
+                          marginLeft: '0.5rem', 
+                          fontSize: '0.65rem', 
+                          background: 'var(--primary-light)', 
+                          color: 'var(--primary)', 
+                          padding: '0.1rem 0.4rem', 
+                          borderRadius: '4px',
+                          fontWeight: 700,
+                          verticalAlign: 'middle' 
+                        }}>
+                          MULTI-HARI
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <div>
                     <div style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '0.25rem' }}>Waktu</div>

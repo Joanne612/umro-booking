@@ -17,6 +17,8 @@ export interface BookingData {
   createdAt: any;
   status: "active" | "cancelled";
   meetingLink?: string;
+  groupId?: string; // Untuk mengelompokkan booking multi-hari
+  endDate?: string;
   consumption?: {
     requested: boolean;
     morningSnack: boolean;
@@ -155,6 +157,20 @@ export const deleteRoom = async (roomId: string) => {
   }
   
   await deleteDoc(doc(db, "rooms", roomId));
+};
+
+// ================= UTILS =================
+
+export const getDatesInRange = (startDate: string, endDate: string): string[] => {
+  const dates: string[] = [];
+  let curr = new Date(startDate);
+  const last = new Date(endDate);
+  
+  while (curr <= last) {
+    dates.push(curr.toISOString().split('T')[0]);
+    curr.setDate(curr.getDate() + 1);
+  }
+  return dates;
 };
 
 // ================= BOOKINGS =================
