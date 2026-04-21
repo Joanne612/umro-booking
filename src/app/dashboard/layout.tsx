@@ -66,18 +66,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </Link>
           )}
 
-          {/* New Approval Link for Asman & Admin */}
-          {(userRole === "asman" || userRole === "admin") && (
+          {/* Approval Link for Asman, Admin, and Staff Umum */}
+          {(userRole === "asman" || userRole === "admin" || userRole === "staff_umum") && (
             <Link href="/dashboard/approvals" className={`${styles.navItem} ${pathname === "/dashboard/approvals" ? styles.active : ""}`}>
               <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>
               Panel Persetujuan
             </Link>
           )}
 
-          {(userRole === "umum" || userRole === "admin") && (
+          {(userRole === "koordinator_driver" || userRole === "admin") && (
             <Link href="/dashboard/vehicles/approvals" className={`${styles.navItem} ${pathname === "/dashboard/vehicles/approvals" ? styles.active : ""}`}>
               <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
-              Persetujuan Kendaraan
+              Persetujuan Driver
             </Link>
           )}
 
@@ -133,7 +133,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                pathname === '/dashboard/profile' ? 'Pengaturan Profil' : 
                pathname === '/dashboard/approvals' ? 'Panel Persetujuan' :
                pathname === '/dashboard/vehicles' ? 'Peminjaman Kendaraan' :
-               pathname === '/dashboard/vehicles/approvals' ? 'Persetujuan Kendaraan' :
+               pathname === '/dashboard/vehicles/approvals' ? 'Persetujuan Driver & Armada' :
                'Admin Panel'}
             </h1>
           </div>

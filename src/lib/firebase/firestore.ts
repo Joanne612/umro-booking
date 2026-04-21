@@ -1,4 +1,4 @@
-import { collection, addDoc, query, where, getDocs, Timestamp, onSnapshot, doc, getDoc, setDoc, updateDoc, deleteDoc, orderBy } from "firebase/firestore";
+import { collection, addDoc, query, where, getDocs, Timestamp, onSnapshot, doc, getDoc, setDoc, updateDoc, deleteDoc, orderBy, limit } from "firebase/firestore";
 import { db } from "./config";
 import { User as FirebaseUser } from "firebase/auth";
 
@@ -19,14 +19,18 @@ export interface BookingData {
   meetingLink?: string;
   consumption?: {
     requested: boolean;
-    snack: boolean;
+    morningSnack: boolean;
     lunch: boolean;
+    afternoonSnack: boolean;
     notes?: string;
-    status: "pending" | "approved" | "rejected";
+    status: "pending" | "approved" | "rejected" | "completed";
     approvedBy?: string;
     approvedByName?: string;
     approvalDate?: any;
     rejectReason?: string;
+    processedBy?: string;
+    processedByName?: string;
+    processedDate?: any;
   }
 }
 
@@ -65,7 +69,7 @@ export interface VehicleBooking {
 export interface UserRole {
   uid: string;
   email: string;
-  role: "admin" | "asman" | "umum" | "user" | "view";
+  role: "admin" | "asman" | "koordinator_driver" | "staff_umum" | "user" | "view";
   name: string;
 }
 
@@ -107,7 +111,7 @@ export const getAllUsers = async (): Promise<UserRole[]> => {
 };
 
 // Admin: Update user role
-export const updateUserRole = async (uid: string, newRole: "admin" | "asman" | "umum" | "user" | "view") => {
+export const updateUserRole = async (uid: string, newRole: "admin" | "asman" | "koordinator_driver" | "staff_umum" | "user" | "view") => {
   if (!db) return;
   const userRef = doc(db, "users", uid);
   await updateDoc(userRef, { role: newRole });
@@ -155,7 +159,13 @@ export const deleteRoom = async (roomId: string) => {
 
 // ================= BOOKINGS =================
 
-export const checkBookingConflict = async (roomId: string, date: string, startTime: string, endTime: string): Promise<BookingData | null> => {
+export const checkBookingConflict = async (
+  roomId: string, 
+  date: string, 
+  startTime: string, 
+  endTime: string,
+  excludeBookingId?: string
+): Promise<BookingData | null> => {
   if (!db) return null;
   
   const bookingsRef = collection(db, "bookings");
@@ -167,7 +177,9 @@ export const checkBookingConflict = async (roomId: string, date: string, startTi
   );
 
   const snapshot = await getDocs(q);
-  const existingBookings = snapshot.docs.map(doc => doc.data() as BookingData);
+  const existingBookings = snapshot.docs
+    .map(doc => ({ id: doc.id, ...doc.data() } as BookingData))
+    .filter(booking => booking.id !== excludeBookingId);
 
   const conflict = existingBookings.find(booking => {
     return (startTime < booking.endTime && endTime > booking.startTime);
@@ -192,6 +204,12 @@ export const createBooking = async (data: Omit<BookingData, "status">) => {
     createdAt: Timestamp.now()
   });
   return docRef.id;
+};
+
+export const updateBooking = async (bookingId: string, data: Partial<BookingData>) => {
+  if (!db) throw new Error("Firestore not initialized");
+  const bookingRef = doc(db, "bookings", bookingId);
+  await updateDoc(bookingRef, data);
 };
 
 export const subscribeToBookingsRange = (startDate: string, endDate: string, callback: (bookings: BookingData[]) => void) => {
@@ -245,11 +263,44 @@ export const getPendingConsumptionBookings = async (): Promise<BookingData[]> =>
   return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as BookingData));
 };
 
+export const getConsumptionHistory = async (): Promise<BookingData[]> => {
+  if (!db) return [];
+  const bookingsRef = collection(db, "bookings");
+  const q = query(
+    bookingsRef, 
+    where("status", "==", "active"),
+    where("consumption.requested", "==", true),
+    where("consumption.status", "in", ["approved", "rejected", "completed"])
+  );
+  
+  const snapshot = await getDocs(q);
+  return snapshot.docs
+    .map(doc => ({ id: doc.id, ...doc.data() } as BookingData))
+    .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+};
+
+// NEW: For Staff Umum - Get only approved (not yet completed)
+export const getApprovedConsumptionBookings = async (): Promise<BookingData[]> => {
+  if (!db) return [];
+  const bookingsRef = collection(db, "bookings");
+  const q = query(
+    bookingsRef, 
+    where("status", "==", "active"),
+    where("consumption.requested", "==", true),
+    where("consumption.status", "==", "approved")
+  );
+  
+  const snapshot = await getDocs(q);
+  return snapshot.docs
+    .map(doc => ({ id: doc.id, ...doc.data() } as BookingData))
+    .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+};
+
 export const updateConsumptionStatus = async (
   bookingId: string, 
-  status: "approved" | "rejected", 
-  asmanId: string, 
-  asmanName: string,
+  status: "approved" | "rejected" | "completed", 
+  userId: string, 
+  userName: string,
   reason?: string
 ) => {
   if (!db) return;
@@ -257,13 +308,17 @@ export const updateConsumptionStatus = async (
   
   const updates: any = {
     "consumption.status": status,
-    "consumption.approvedBy": asmanId,
-    "consumption.approvedByName": asmanName,
-    "consumption.approvalDate": Timestamp.now()
   };
   
-  if (reason) {
-    updates["consumption.rejectReason"] = reason;
+  if (status === "approved" || status === "rejected") {
+    updates["consumption.approvedBy"] = userId;
+    updates["consumption.approvedByName"] = userName;
+    updates["consumption.approvalDate"] = Timestamp.now();
+    if (reason) updates["consumption.rejectReason"] = reason;
+  } else if (status === "completed") {
+    updates["consumption.processedBy"] = userId;
+    updates["consumption.processedByName"] = userName;
+    updates["consumption.processedDate"] = Timestamp.now();
   }
   
   await updateDoc(bookingRef, updates);
@@ -292,28 +347,64 @@ export const getUserVehicleBookings = async (userId: string): Promise<VehicleBoo
     .sort((a, b) => b.createdAt?.toMillis() - a.createdAt?.toMillis());
 };
 
-export const getPendingVehicleBookings = async (): Promise<VehicleBooking[]> => {
-  if (!db) return [];
+export const subscribeToPendingVehicles = (callback: (data: VehicleBooking[]) => void) => {
+  if (!db) return () => {};
   const q = query(
     collection(db, "vehicle_bookings"), 
     where("status", "==", "pending")
   );
-  const snap = await getDocs(q);
-  return snap.docs
-    .map(doc => ({ id: doc.id, ...doc.data() } as VehicleBooking))
-    .sort((a, b) => b.createdAt?.toMillis() - a.createdAt?.toMillis());
+  
+  return onSnapshot(q, (snap) => {
+    const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as VehicleBooking));
+    callback(data.sort((a, b) => b.createdAt?.toMillis() - a.createdAt?.toMillis()));
+  });
 };
 
-export const getWaitingAsmanVehicleBookings = async (): Promise<VehicleBooking[]> => {
-  if (!db) return [];
+export const subscribeToWaitingAsmanVehicles = (callback: (data: VehicleBooking[]) => void) => {
+  if (!db) return () => {};
   const q = query(
     collection(db, "vehicle_bookings"), 
     where("status", "==", "waiting_asman")
   );
+  
+  return onSnapshot(q, (snap) => {
+    const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as VehicleBooking));
+    callback(data.sort((a, b) => b.createdAt?.toMillis() - a.createdAt?.toMillis()));
+  });
+};
+
+export const subscribeToVehicleHistory = (callback: (data: VehicleBooking[]) => void) => {
+  if (!db) return () => {};
+  const q = query(
+    collection(db, "vehicle_bookings"), 
+    where("status", "in", ["waiting_asman", "approved", "rejected"])
+  );
+  
+  return onSnapshot(q, (snap) => {
+    const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as VehicleBooking));
+    // Sort on client side to avoid manual index creation
+    const sorted = data.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+    callback(sorted.slice(0, 50));
+  });
+};
+
+export const getVehicleHistory = async (): Promise<VehicleBooking[]> => {
+  if (!db) return [];
+  const q = query(
+    collection(db, "vehicle_bookings"), 
+    where("status", "in", ["waiting_asman", "approved", "rejected"])
+  );
   const snap = await getDocs(q);
-  return snap.docs
-    .map(doc => ({ id: doc.id, ...doc.data() } as VehicleBooking))
-    .sort((a, b) => b.createdAt?.toMillis() - a.createdAt?.toMillis());
+  const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as VehicleBooking));
+  return data.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)).slice(0, 50);
+};
+
+export const updateVehicleNotes = async (bookingId: string, notes: string) => {
+  if (!db) return;
+  const bookingRef = doc(db, "vehicle_bookings", bookingId);
+  await updateDoc(bookingRef, {
+    vehicleNotes: notes
+  });
 };
 
 export const validateVehicleBooking = async (

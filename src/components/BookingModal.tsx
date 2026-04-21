@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { createBooking, checkBookingConflict, BookingData as FullBookingData, Room } from "@/lib/firebase/firestore";
+import { createBooking, updateBooking, checkBookingConflict, BookingData as FullBookingData, Room } from "@/lib/firebase/firestore";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/context/ToastContext";
 import styles from "../app/dashboard/dashboard.module.css";
@@ -12,6 +12,7 @@ interface BookingModalProps {
   rooms: Room[];
   selectedDate: string;
   initialTime?: string;
+  editData?: FullBookingData | null;
 }
 
 // Generate 24-hour time slots to prevent AM/PM browser issues
@@ -25,7 +26,14 @@ const generateTimeSlots = () => {
 };
 const timeSlots = generateTimeSlots();
 
-export default function BookingModal({ isOpen, onClose, rooms, selectedDate, initialTime }: BookingModalProps) {
+export default function BookingModal({ 
+  isOpen, 
+  onClose, 
+  rooms, 
+  selectedDate, 
+  initialTime,
+  editData 
+}: BookingModalProps) {
   const { user } = useAuth();
   const { showToast } = useToast();
   const [loading, setLoading] = useState(false);
@@ -37,11 +45,12 @@ export default function BookingModal({ isOpen, onClose, rooms, selectedDate, ini
     division: "",
     participants: 1,
     startTime: initialTime || "09:00",
-    endTime: "10:00", // Will be synced in useEffect
+    endTime: "10:00",
     consumption: {
       requested: false,
-      snack: false,
+      morningSnack: false,
       lunch: false,
+      afternoonSnack: false,
       notes: ""
     }
   });
@@ -49,23 +58,49 @@ export default function BookingModal({ isOpen, onClose, rooms, selectedDate, ini
   const [conflict, setConflict] = useState<FullBookingData | null>(null);
   const [checking, setChecking] = useState(false);
 
-  // Sync modal date and initial time when props change
+  // Sync modal date and initial time OR edit data when props change
   useEffect(() => {
-    let start = initialTime || "09:00";
+    if (editData) {
+      setFormData({
+        roomId: editData.roomId,
+        date: editData.date,
+        title: editData.title,
+        division: editData.division,
+        participants: editData.participants,
+        startTime: editData.startTime,
+        endTime: editData.endTime,
+        consumption: {
+          requested: editData.consumption?.requested || false,
+          morningSnack: editData.consumption?.morningSnack || false,
+          lunch: editData.consumption?.lunch || false,
+          afternoonSnack: editData.consumption?.afternoonSnack || false,
+          notes: editData.consumption?.notes || ""
+        }
+      });
+    } else {
+      let start = initialTime || "09:00";
+      let [h, m] = start.split(':').map(Number);
+      let endH = h + 1;
+      let end = `${endH.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
 
-    // Auto-calculate end time (1 hour later)
-    let [h, m] = start.split(':').map(Number);
-    let endH = h + 1;
-    let end = `${endH.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
-
-    setFormData(prev => ({
-      ...prev,
-      date: selectedDate,
-      startTime: start,
-      endTime: end,
-      roomId: rooms[0]?.id || prev.roomId
-    }));
-  }, [selectedDate, initialTime, rooms]);
+      setFormData({
+        roomId: rooms[0]?.id || "",
+        date: selectedDate,
+        title: "",
+        division: "",
+        participants: 1,
+        startTime: start,
+        endTime: end,
+        consumption: {
+          requested: false,
+          morningSnack: false,
+          lunch: false,
+          afternoonSnack: false,
+          notes: ""
+        }
+      });
+    }
+  }, [isOpen, editData, selectedDate, initialTime, rooms]);
 
   // Real-time conflict check
   useEffect(() => {
@@ -78,7 +113,8 @@ export default function BookingModal({ isOpen, onClose, rooms, selectedDate, ini
           formData.roomId,
           formData.date,
           formData.startTime,
-          formData.endTime
+          formData.endTime,
+          editData?.id
         );
         setConflict(result);
       } catch (err) {
@@ -90,7 +126,7 @@ export default function BookingModal({ isOpen, onClose, rooms, selectedDate, ini
 
     const timer = setTimeout(check, 500); // Debounce
     return () => clearTimeout(timer);
-  }, [formData.roomId, formData.date, formData.startTime, formData.endTime]);
+  }, [formData.roomId, formData.date, formData.startTime, formData.endTime, editData]);
 
   if (!isOpen) return null;
 
@@ -98,7 +134,6 @@ export default function BookingModal({ isOpen, onClose, rooms, selectedDate, ini
     e.preventDefault();
     if (!user) return showToast("Anda harus login untuk membooking.", "error");
 
-    // Basic Client validation
     if (formData.endTime <= formData.startTime) {
       return showToast("Waktu selesai harus lebih besar dari waktu mulai.", "warning");
     }
@@ -106,32 +141,39 @@ export default function BookingModal({ isOpen, onClose, rooms, selectedDate, ini
     setLoading(true);
     try {
       const room = rooms.find(r => r.id === formData.roomId);
-      await createBooking({
+      const bookingPayload = {
         roomId: formData.roomId,
         roomName: room?.name || "Unknown",
         title: formData.title,
         division: formData.division,
         participants: Number(formData.participants),
-        date: formData.date, // Use the freely editable date
+        date: formData.date,
         startTime: formData.startTime,
         endTime: formData.endTime,
         userId: user.uid,
         userName: user.displayName || user.email || "Unknown",
-        createdAt: new Date(), // Placeholder, converted to Timestamp in firestore.ts
+        createdAt: editData?.createdAt || new Date(),
         consumption: formData.consumption.requested ? {
           ...formData.consumption,
-          status: "pending"
+          status: editData?.consumption?.status || "pending"
         } : undefined
-      });
-      showToast(
-        formData.consumption.requested 
-          ? "Booking berhasil! Permintaan konsumsi sedang menunggu persetujuan Asman Umum." 
-          : "Booking berhasil dibuat!", 
-        "success"
-      );
+      };
+
+      if (editData?.id) {
+        await updateBooking(editData.id, bookingPayload);
+        showToast("Booking berhasil diperbarui!", "success");
+      } else {
+        await createBooking(bookingPayload);
+        showToast(
+          formData.consumption.requested 
+            ? "Booking berhasil! Permintaan konsumsi sedang menunggu persetujuan Asman Umum." 
+            : "Booking berhasil dibuat!", 
+          "success"
+        );
+      }
       onClose();
     } catch (error: any) {
-      showToast("Gagal membooking: " + error.message, "error");
+      showToast("Gagal memproses: " + error.message, "error");
     } finally {
       setLoading(false);
     }
@@ -141,7 +183,9 @@ export default function BookingModal({ isOpen, onClose, rooms, selectedDate, ini
     <div className={styles.modalOverlay}>
       <div className={styles.modalContent}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
-          <h2 style={{ fontSize: '1.25rem', fontWeight: 600 }}>Buat Booking Baru</h2>
+          <h2 style={{ fontSize: '1.25rem', fontWeight: 600 }}>
+            {editData ? "Edit Booking Ruangan" : "Buat Booking Baru"}
+          </h2>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: 'var(--text-muted)' }}>&times;</button>
         </div>
 
@@ -181,7 +225,8 @@ export default function BookingModal({ isOpen, onClose, rooms, selectedDate, ini
                 borderRadius: 'var(--radius-sm)',
                 fontSize: '0.8125rem',
                 color: 'var(--text-muted)',
-                lineHeight: '1.4',
+                lineHeight: '1.5',
+                whiteSpace: 'pre-wrap',
                 animation: 'fadeIn 0.3s ease'
               }}>
                 <div style={{ fontWeight: 700, color: 'var(--primary)', marginBottom: '0.25rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
@@ -275,20 +320,20 @@ export default function BookingModal({ isOpen, onClose, rooms, selectedDate, ini
 
             {formData.consumption.requested && (
               <div style={{ animation: 'fadeIn 0.3s ease', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                <div style={{ display: 'flex', gap: '1.5rem', paddingLeft: '2rem' }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem', cursor: 'pointer' }}>
+                <div style={{ display: 'flex', gap: '1rem', paddingLeft: '2rem', flexWrap: 'wrap' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', cursor: 'pointer' }}>
                     <input 
                       type="checkbox" 
-                      checked={formData.consumption.snack} 
+                      checked={formData.consumption.morningSnack} 
                       onChange={(e) => setFormData({ 
                         ...formData, 
-                        consumption: { ...formData.consumption, snack: e.target.checked }
+                        consumption: { ...formData.consumption, morningSnack: e.target.checked }
                       })}
                       style={{ accentColor: 'var(--primary)' }}
                     />
-                    Snack (Kue)
+                    Snack Pagi
                   </label>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem', cursor: 'pointer' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', cursor: 'pointer' }}>
                     <input 
                       type="checkbox" 
                       checked={formData.consumption.lunch} 
@@ -298,7 +343,19 @@ export default function BookingModal({ isOpen, onClose, rooms, selectedDate, ini
                       })}
                       style={{ accentColor: 'var(--primary)' }}
                     />
-                    Makan Siang (Nasi Kotak)
+                    Makan Siang
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', cursor: 'pointer' }}>
+                    <input 
+                      type="checkbox" 
+                      checked={formData.consumption.afternoonSnack} 
+                      onChange={(e) => setFormData({ 
+                        ...formData, 
+                        consumption: { ...formData.consumption, afternoonSnack: e.target.checked }
+                      })}
+                      style={{ accentColor: 'var(--primary)' }}
+                    />
+                    Snack Sore
                   </label>
                 </div>
                 

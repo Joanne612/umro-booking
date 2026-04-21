@@ -33,7 +33,7 @@ export default function AdminPage() {
   const [newRoomType, setNewRoomType] = useState<"physical" | "online">("physical");
 
   // Role Change Confirmation State
-  const [roleChangePending, setRoleChangePending] = useState<{ uid: string; name: string; newRole: "admin" | "asman" | "umum" | "user" | "view" } | null>(null);
+  const [roleChangePending, setRoleChangePending] = useState<{ uid: string; name: string; newRole: "admin" | "asman" | "koordinator_driver" | "staff_umum" | "user" | "view" } | null>(null);
   const [roleChanging, setRoleChanging] = useState(false);
 
   const fetchRooms = async () => {
@@ -94,7 +94,7 @@ export default function AdminPage() {
     }
   };
 
-  const handleRoleChangeRequest = (uid: string, name: string, newRole: "admin" | "asman" | "umum" | "user" | "view") => {
+  const handleRoleChangeRequest = (uid: string, name: string, newRole: "admin" | "asman" | "koordinator_driver" | "staff_umum" | "user" | "view") => {
     if (uid === user?.uid) {
       showToast("Anda tidak dapat mengubah role Anda sendiri demi keamanan.", "warning");
       return;
@@ -379,8 +379,8 @@ export default function AdminPage() {
                         fontSize: '0.75rem',
                         fontWeight: 700,
                         textTransform: 'uppercase',
-                        backgroundColor: u.role === 'admin' ? '#FEE2E2' : u.role === 'asman' ? '#FEF3C7' : u.role === 'umum' ? '#E9D5FF' : u.role === 'view' ? '#F3F4F6' : '#E0F2FE',
-                        color: u.role === 'admin' ? '#EF4444' : u.role === 'asman' ? '#D97706' : u.role === 'umum' ? '#7E22CE' : u.role === 'view' ? '#6B7280' : '#0369A1'
+                        backgroundColor: u.role === 'admin' ? '#FEE2E2' : u.role === 'asman' ? '#FEF3C7' : u.role === 'koordinator_driver' ? '#E9D5FF' : u.role === 'staff_umum' ? '#D1FAE5' : u.role === 'view' ? '#F3F4F6' : '#E0F2FE',
+                        color: u.role === 'admin' ? '#EF4444' : u.role === 'asman' ? '#D97706' : u.role === 'koordinator_driver' ? '#7E22CE' : u.role === 'staff_umum' ? '#059669' : u.role === 'view' ? '#6B7280' : '#0369A1'
                       }}>
                         {u.role}
                       </span>
@@ -401,10 +401,11 @@ export default function AdminPage() {
                         }}
                       >
                         <option value="user">User (Booking)</option>
-                        <option value="asman">Asman Umum (Konsumsi)</option>
-                        <option value="umum">Umum (Peminjaman Kendaraan)</option>
-                        <option value="admin">Admin (Kelola)</option>
-                        <option value="view">View (Hanya Lihat)</option>
+                        <option value="asman">Asman Umum (Persetujuan Konsumsi)</option>
+                        <option value="koordinator_driver">Koordinator Driver (Kendaraan)</option>
+                        <option value="staff_umum">Staff Umum (Kelola Konsumsi)</option>
+                        <option value="admin">Admin (Full Control)</option>
+                        <option value="view">View Only</option>
                       </select>
                     </td>
                   </tr>

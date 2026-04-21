@@ -170,12 +170,27 @@ export default function VehicleBookingModal({ isOpen, onClose, onSuccess }: Vehi
               />
             </div>
             <div className={styles.formGroup}>
-              <label className={styles.formLabel}>Jam Penjemputan</label>
+              <label className={styles.formLabel}>Jam Penjemputan (24 Jam)</label>
               <input 
-                type="time" 
+                type="text" 
                 required 
+                placeholder="Cth: 14:00"
                 value={formData.pickupTime} 
-                onChange={e => setFormData({...formData, pickupTime: e.target.value})} 
+                onChange={e => {
+                  let val = e.target.value.replace(/[^0-9:]/g, '');
+                  if (val.length === 2 && !val.includes(':') && !e.target.value.endsWith(':')) {
+                    if (e.target.value.length > formData.pickupTime.length) val += ':';
+                  }
+                  if (val.length > 5) val = val.substring(0, 5);
+                  setFormData({...formData, pickupTime: val});
+                }} 
+                onBlur={e => {
+                  // Simple validation on blur
+                  const regex = /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/;
+                  if (formData.pickupTime && !regex.test(formData.pickupTime)) {
+                    showToast("Format jam tidak valid. Gunakan format HH:mm (00:00 - 23:59)", "warning");
+                  }
+                }}
                 className={styles.textInput} 
               />
             </div>

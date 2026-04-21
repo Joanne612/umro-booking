@@ -15,8 +15,12 @@ service cloud.firestore {
       return request.auth != null && getUserData().role == 'asman';
     }
 
-    function isUmum() {
-      return request.auth != null && getUserData().role == 'umum';
+    function isKoordinatorDriver() {
+      return request.auth != null && getUserData().role == 'koordinator_driver';
+    }
+
+    function isStaffUmum() {
+      return request.auth != null && getUserData().role == 'staff_umum';
     }
     
     function isViewOnly() {
@@ -39,8 +43,8 @@ service cloud.firestore {
       allow read: if request.auth != null;
       allow create: if request.auth != null && !isViewOnly();
       
-      // Update/Delete: Admin & Asman bisa, User hanya bisa miliknya sendiri
-      allow update: if isAdmin() || isAsman() || (
+      // Update/Delete: Admin & Asman bisa, Staff Umum bisa (untuk kelola konsumsi), User hanya bisa miliknya sendiri
+      allow update: if isAdmin() || isAsman() || isStaffUmum() || (
         request.auth.uid == resource.data.userId && 
         !isViewOnly()
       );
@@ -48,17 +52,17 @@ service cloud.firestore {
     }
 
     // Koleksi Vehicle Bookings: PRIVASI KETAT
-    // Hanya Pemilik, Role Umum, Asman Umum, atau Admin yang bisa baca/tulis
+    // Hanya Pemilik, Koordinator Driver, Staff Umum, Asman Umum, atau Admin yang bisa baca/tulis
     match /vehicle_bookings/{bookingId} {
       allow read: if request.auth != null && (
-        isAdmin() || isUmum() || isAsman() || request.auth.uid == resource.data.userId
+        isAdmin() || isKoordinatorDriver() || isStaffUmum() || isAsman() || request.auth.uid == resource.data.userId
       );
       allow create: if request.auth != null && !isViewOnly();
       allow update: if request.auth != null && (
-        isAdmin() || isUmum() || isAsman() || (request.auth.uid == resource.data.userId && !isViewOnly())
+        isAdmin() || isKoordinatorDriver() || isAsman() || (request.auth.uid == resource.data.userId && !isViewOnly())
       );
       allow delete: if request.auth != null && (
-        isAdmin() || isUmum() || isAsman() || (request.auth.uid == resource.data.userId && !isViewOnly())
+        isAdmin() || isKoordinatorDriver() || isAsman() || (request.auth.uid == resource.data.userId && !isViewOnly())
       );
     }
   }

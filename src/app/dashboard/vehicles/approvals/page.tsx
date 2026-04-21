@@ -1,42 +1,68 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/context/ToastContext";
-import { getPendingVehicleBookings, validateVehicleBooking, updateVehicleBookingStatus, VehicleBooking } from "@/lib/firebase/firestore";
+import {
+  subscribeToPendingVehicles,
+  subscribeToVehicleHistory,
+  validateVehicleBooking,
+  updateVehicleBookingStatus,
+  updateVehicleNotes,
+  VehicleBooking
+} from "@/lib/firebase/firestore";
+import VehicleApprovalCard from "@/components/VehicleApprovalCard";
 import styles from "../../dashboard.module.css";
 
 export default function VehicleApprovalsPage() {
   const { user, userRole } = useAuth();
   const { showToast } = useToast();
-  
+
+  const [viewMode, setViewMode] = useState<"pending" | "history">("pending");
   const [bookings, setBookings] = useState<VehicleBooking[]>([]);
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState<string | null>(null);
-  
+  const [searchQuery, setSearchQuery] = useState("");
+
   // Approval State
   const [approvingBooking, setApprovingBooking] = useState<VehicleBooking | null>(null);
   const [vehicleNotes, setVehicleNotes] = useState("");
+
+  // Edit State
+  const [editingBooking, setEditingBooking] = useState<VehicleBooking | null>(null);
+  const [editNotes, setEditNotes] = useState("");
 
   // Rejection State
   const [rejectingBooking, setRejectingBooking] = useState<VehicleBooking | null>(null);
   const [rejectReason, setRejectReason] = useState("");
 
-  const fetchData = async () => {
-    setLoading(true);
-    try {
-      const data = await getPendingVehicleBookings();
-      setBookings(data);
-    } catch (error: any) {
-      showToast("Gagal memuat data: " + error.message, "error");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    fetchData();
-  }, []);
+    setLoading(true);
+    let unsubscribe: () => void;
+
+    if (viewMode === "pending") {
+      unsubscribe = subscribeToPendingVehicles((data) => {
+        setBookings(data);
+        setLoading(false);
+      });
+    } else {
+      unsubscribe = subscribeToVehicleHistory((data) => {
+        setBookings(data);
+        setLoading(false);
+      });
+    }
+
+    return () => unsubscribe?.();
+  }, [viewMode]);
+
+  const filteredBookings = useMemo(() => {
+    return bookings.filter(b =>
+      b.destination?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      b.userName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      b.vehicleNotes?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      b.event?.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }, [bookings, searchQuery]);
 
   const handleApproveSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,17 +73,33 @@ export default function VehicleApprovalsPage() {
     setProcessingId(approvingBooking.id);
     try {
       await validateVehicleBooking(
-        approvingBooking.id, 
-        user.uid, 
-        user.displayName || user.email || "Petugas Umum",
+        approvingBooking.id,
+        user.uid,
+        user.displayName || user.email || "Koordinator Driver",
         vehicleNotes
       );
       showToast("Pengajuan berhasil divalidasi dan diteruskan ke Asman Umum.", "success");
       setApprovingBooking(null);
       setVehicleNotes("");
-      fetchData();
     } catch (error: any) {
       showToast("Gagal memproses: " + error.message, "error");
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user || !editingBooking?.id || !editNotes.trim()) return;
+
+    setProcessingId(editingBooking.id);
+    try {
+      await updateVehicleNotes(editingBooking.id, editNotes);
+      showToast("Informasi armada berhasil diperbarui.", "success");
+      setEditingBooking(null);
+      setEditNotes("");
+    } catch (error: any) {
+      showToast("Gagal merubah data: " + error.message, "error");
     } finally {
       setProcessingId(null);
     }
@@ -66,20 +108,19 @@ export default function VehicleApprovalsPage() {
   const handleReject = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !rejectingBooking?.id || !rejectReason.trim()) return;
-    
+
     setProcessingId(rejectingBooking.id);
     try {
       await updateVehicleBookingStatus(
-        rejectingBooking.id, 
-        "rejected", 
-        user.uid, 
-        user.displayName || user.email || "Petugas Umum",
+        rejectingBooking.id,
+        "rejected",
+        user.uid,
+        user.displayName || user.email || "Koordinator Driver",
         rejectReason
       );
       showToast("Pengajuan kendaraan telah ditolak.", "success");
       setRejectingBooking(null);
       setRejectReason("");
-      fetchData();
     } catch (error: any) {
       showToast("Gagal memproses: " + error.message, "error");
     } finally {
@@ -87,12 +128,12 @@ export default function VehicleApprovalsPage() {
     }
   };
 
-  if (userRole !== "admin" && userRole !== "umum") {
+  if (userRole !== "admin" && userRole !== "koordinator_driver") {
     return (
       <div style={{ textAlign: "center", padding: "5rem 2rem" }}>
         <div style={{ fontSize: "4rem", marginBottom: "1rem" }}>🔒</div>
-        <h2 style={{ fontSize: "1.5rem", fontWeight: 700 }}>Akses Terbatas (Umum)</h2>
-        <p style={{ color: "var(--text-muted)" }}>Halaman ini hanya dapat diakses oleh Role Umum atau Admin.</p>
+        <h2 style={{ fontSize: "1.5rem", fontWeight: 700 }}>Akses Terbatas (Koordinator Driver)</h2>
+        <p style={{ color: "var(--text-muted)" }}>Halaman ini hanya dapat diakses oleh Koordinator Driver atau Admin.</p>
       </div>
     );
   }
@@ -101,139 +142,117 @@ export default function VehicleApprovalsPage() {
     <div style={{ animation: 'fadeIn 0.5s ease' }}>
       <div style={{ marginBottom: '2rem' }}>
         <h2 style={{ fontSize: '1.5rem', fontWeight: 700 }}>Persetujuan Peminjaman Kendaraan</h2>
-        <p style={{ color: 'var(--text-muted)' }}>Daftar pengajuan operasional kendaraan yang menunggu validasi Anda.</p>
+        <p style={{ color: 'var(--text-muted)' }}>Daftar pengajuan operasional kendaraan yang memerlukan validasi armada & driver.</p>
+      </div>
+
+      {/* TABS & SEARCH */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginBottom: '2rem' }}>
+        <div style={{ display: 'flex', background: '#F1F5F9', padding: '0.25rem', borderRadius: 'var(--radius-md)' }}>
+          <button
+            onClick={() => setViewMode("pending")}
+            style={{
+              padding: '0.5rem 1.25rem',
+              border: 'none',
+              borderRadius: 'calc(var(--radius-md) - 2px)',
+              background: viewMode === "pending" ? 'white' : 'transparent',
+              boxShadow: viewMode === "pending" ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+              fontSize: '0.8125rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              color: viewMode === "pending" ? 'var(--primary)' : 'var(--text-muted)'
+            }}
+          >
+            Antrean / Perlu Diproses
+          </button>
+          <button
+            onClick={() => setViewMode("history")}
+            style={{
+              padding: '0.5rem 1.25rem',
+              border: 'none',
+              borderRadius: 'calc(var(--radius-md) - 2px)',
+              background: viewMode === "history" ? 'white' : 'transparent',
+              boxShadow: viewMode === "history" ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+              fontSize: '0.8125rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              color: viewMode === "history" ? 'var(--primary)' : 'var(--text-muted)'
+            }}
+          >
+            Riwayat
+          </button>
+        </div>
+
+        <div style={{ position: 'relative', flex: '1', maxWidth: '350px' }}>
+          <span style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', opacity: 0.5 }}>🔍</span>
+          <input
+            type="text"
+            placeholder="Cari tujuan, pemohon, atau driver..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            style={{
+              width: '100%',
+              padding: '0.6rem 1rem 0.6rem 2.25rem',
+              borderRadius: 'var(--radius-md)',
+              border: '1px solid var(--border)',
+              fontSize: '0.875rem'
+            }}
+          />
+        </div>
       </div>
 
       {loading ? (
-        <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>Memuat data pengajuan...</div>
-      ) : bookings.length === 0 ? (
+        <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>Memuat data...</div>
+      ) : filteredBookings.length === 0 ? (
         <div className={styles.card} style={{ textAlign: 'center', padding: '4rem 2rem' }}>
-          <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>✅</div>
-          <h3 style={{ fontSize: '1.25rem', fontWeight: 600 }}>Semua Pengajuan Selesai</h3>
-          <p style={{ color: 'var(--text-muted)' }}>Tidak ada pengajuan kendaraan yang perlu diproses saat ini.</p>
+          <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>{searchQuery ? '🔎' : '✅'}</div>
+          <h3 style={{ fontSize: '1.25rem', fontWeight: 600 }}>{searchQuery ? 'Hasil tidak ditemukan' : 'Semua Beres!'}</h3>
+          <p style={{ color: 'var(--text-muted)' }}>{searchQuery ? `Tidak ada hasil untuk "${searchQuery}"` : 'Tidak ada pengajuan kendaraan yang perlu diproses.'}</p>
         </div>
       ) : (
         <div style={{ display: 'grid', gap: '1.5rem' }}>
-          {bookings.map(booking => (
-            <div key={booking.id} className={styles.card} style={{ padding: 0, overflow: 'hidden' }}>
-              {/* Header */}
-              <div style={{ padding: '1.25rem', background: 'rgba(0,162,233,0.03)', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                  <span style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--primary)', textTransform: 'uppercase' }}>Tujuan Ke:</span>
-                  <h3 style={{ fontSize: '1.25rem', fontWeight: 800 }}>{booking.destination}</h3>
-                </div>
-                <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontWeight: 700 }}>{new Date(booking.date).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</div>
-                  <div style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>Durasi: {booking.duration} Hari</div>
-                </div>
-              </div>
-
-              {/* Grid Content */}
-              <div style={{ padding: '1.5rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem' }}>
-                <div>
-                  <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '0.5rem' }}>PEMOHON / PIC</label>
-                  <div style={{ fontWeight: 600 }}>👤 {booking.userName}</div>
-                  <div style={{ fontSize: '0.875rem' }}>📞 {booking.userPhone}</div>
-                </div>
-                <div>
-                  <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '0.5rem' }}>PENJEMPUTAN</label>
-                  <div style={{ fontWeight: 600 }}>🕒 {booking.pickupTime} WIB</div>
-                  <div style={{ fontSize: '0.875rem', color: 'var(--text-main)', lineHeight: 1.4 }}>📍 {booking.pickupLocation}</div>
-                </div>
-                <div>
-                  <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '0.5rem' }}>DETAIL PERJALANAN</label>
-                  <div style={{ fontSize: '0.875rem' }}>🔁 Tipe: <b>{booking.tripType === 'pp' ? 'Pulang Pergi' : 'Sekali Jalan'}</b></div>
-                  <div style={{ fontSize: '0.875rem' }}>👥 Penumpang: <b>{booking.passengers} Orang</b></div>
-                </div>
-                <div style={{ gridColumn: '1 / -1' }}>
-                  <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '0.5rem' }}>ACARA / KEGIATAN</label>
-                  <div style={{ padding: '0.75rem', background: '#F8FAFC', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', fontSize: '0.875rem' }}>
-                    {booking.event}
-                  </div>
-                </div>
-              </div>
-
-              {/* Actions */}
-              <div style={{ padding: '1rem 1.5rem', background: '#F8FAFC', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
-                <button 
-                  onClick={() => setRejectingBooking(booking)}
-                  disabled={!!processingId}
-                  style={{ 
-                    padding: '0.75rem 1.5rem', 
-                    borderRadius: 'var(--radius-md)', 
-                    border: '1px solid #EF4444', 
-                    color: '#EF4444', 
-                    background: 'white', 
-                    fontWeight: 600, 
-                    cursor: 'pointer'
-                  }}
-                >
-                  Tolak
-                </button>
-                <button 
-                  onClick={() => setApprovingBooking(booking)}
-                  disabled={!!processingId}
-                  style={{ 
-                    padding: '0.75rem 2rem', 
-                    borderRadius: 'var(--radius-md)', 
-                    border: 'none', 
-                    background: '#10B981', 
-                    color: 'white', 
-                    fontWeight: 600, 
-                    cursor: 'pointer',
-                    boxShadow: '0 4px 6px rgba(16, 185, 129, 0.2)'
-                  }}
-                >
-                  ✓ Validasi & Teruskan
-                </button>
-              </div>
-            </div>
+          {filteredBookings.map(booking => (
+            <VehicleApprovalCard 
+              key={booking.id}
+              booking={booking}
+              viewMode={viewMode}
+              userRole={userRole}
+              processingId={processingId}
+              onApprove={(id) => setApprovingBooking(booking)}
+              onReject={(b) => setRejectingBooking(b)}
+              onEdit={(b) => { setEditingBooking(b); setEditNotes(b.vehicleNotes || ""); }}
+            />
           ))}
         </div>
       )}
 
-      {/* APPROVAL MODAL WITH NOTES */}
+      {/* APPROVAL MODAL */}
       {approvingBooking && (
         <div className={styles.modalOverlay} style={{ zIndex: 3000 }}>
           <div className={styles.modalContent} style={{ maxWidth: '450px' }}>
             <h3 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '1rem' }}>Validasi & Teruskan</h3>
-            <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginBottom: '1.5rem' }}>
-              Masukkan detail kendaraan (Tipe Mobil, No. Plat) dan Driver untuk diteruskan ke Asman Umum.
-            </p>
-            
+            <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginBottom: '1.5rem' }}>Masukkan detail kendaraan (Tipe Mobil, No. Plat) dan Driver.</p>
             <form onSubmit={handleApproveSubmit}>
-              <textarea 
-                required
-                autoFocus
-                value={vehicleNotes}
-                onChange={(e) => setVehicleNotes(e.target.value)}
-                placeholder="Cth: Toyota Avanza (B 1234 ABC), Driver: Pak Budi (0812...)"
-                style={{ 
-                  width: '100%', 
-                  padding: '0.75rem', 
-                  borderRadius: 'var(--radius-md)', 
-                  border: '1px solid var(--border)',
-                  minHeight: '120px',
-                  fontFamily: 'inherit',
-                  marginBottom: '1.5rem'
-                }}
-              />
-              
+              <textarea required autoFocus value={vehicleNotes} onChange={(e) => setVehicleNotes(e.target.value)} placeholder="Cth: Toyota Avanza (B 1234 ABC), Driver: Pak Budi (0812...)" style={{ width: '100%', padding: '0.75rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', minHeight: '120px', fontFamily: 'inherit', marginBottom: '1.5rem' }} />
               <div style={{ display: 'flex', gap: '1rem' }}>
-                <button 
-                  type="button"
-                  onClick={() => { setApprovingBooking(null); setVehicleNotes(""); }}
-                  style={{ flex: 1, padding: '0.75rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', background: 'white', fontWeight: 600, cursor: 'pointer' }}
-                >
-                  Batal
-                </button>
-                <button 
-                  type="submit"
-                  disabled={!!processingId}
-                  style={{ flex: 1, padding: '0.75rem', borderRadius: 'var(--radius-md)', border: 'none', background: '#10B981', color: 'white', fontWeight: 600, cursor: 'pointer' }}
-                >
-                  {processingId === approvingBooking.id ? 'Memproses...' : '✓ Validasi & Teruskan'}
-                </button>
+                <button type="button" onClick={() => { setApprovingBooking(null); setVehicleNotes(""); }} style={{ flex: 1, padding: '0.75rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', background: 'white', fontWeight: 600, cursor: 'pointer' }}>Batal</button>
+                <button type="submit" disabled={!!processingId} style={{ flex: 1, padding: '0.75rem', borderRadius: 'var(--radius-md)', border: 'none', background: '#10B981', color: 'white', fontWeight: 600, cursor: 'pointer' }}>{processingId === approvingBooking.id ? 'Memproses...' : '✓ Validasi & Teruskan'}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT MODAL */}
+      {editingBooking && (
+        <div className={styles.modalOverlay} style={{ zIndex: 3000 }}>
+          <div className={styles.modalContent} style={{ maxWidth: '450px' }}>
+            <h3 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '1rem' }}>Edit Info Armada</h3>
+            <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginBottom: '1.5rem' }}>Perbarui informasi kendaraan atau driver (perubahan akan langsung terlihat oleh Asman).</p>
+            <form onSubmit={handleEditSubmit}>
+              <textarea required autoFocus value={editNotes} onChange={(e) => setEditNotes(e.target.value)} style={{ width: '100%', padding: '0.75rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', minHeight: '120px', fontFamily: 'inherit', marginBottom: '1.5rem' }} />
+              <div style={{ display: 'flex', gap: '1rem' }}>
+                <button type="button" onClick={() => { setEditingBooking(null); setEditNotes(""); }} style={{ flex: 1, padding: '0.75rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', background: 'white', fontWeight: 600, cursor: 'pointer' }}>Batal</button>
+                <button type="submit" disabled={!!processingId} style={{ flex: 1, padding: '0.75rem', borderRadius: 'var(--radius-md)', border: 'none', background: 'var(--primary)', color: 'white', fontWeight: 600, cursor: 'pointer' }}>{processingId === editingBooking.id ? 'Menyimpan...' : 'Simpan Perubahan'}</button>
               </div>
             </form>
           </div>
@@ -244,44 +263,13 @@ export default function VehicleApprovalsPage() {
       {rejectingBooking && (
         <div className={styles.modalOverlay} style={{ zIndex: 3000 }}>
           <div className={styles.modalContent} style={{ maxWidth: '400px' }}>
-            <h3 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '1rem' }}>Alasan Penolakan (Kendaraan)</h3>
-            <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginBottom: '1.5rem' }}>
-              Berikan alasan penolakan untuk pengajuan ke <b>"{rejectingBooking.destination}"</b>.
-            </p>
-            
+            <h3 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '1rem' }}>Alasan Penolakan</h3>
+            <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginBottom: '1.5rem' }}>Berikan alasan penolakan untuk pengajuan ke <b>"{rejectingBooking.destination}"</b>.</p>
             <form onSubmit={handleReject}>
-              <textarea 
-                required
-                autoFocus
-                value={rejectReason}
-                onChange={(e) => setRejectReason(e.target.value)}
-                placeholder="Cth: Kendaraan sudah penuh terpakai / Maintenance rutin."
-                style={{ 
-                  width: '100%', 
-                  padding: '0.75rem', 
-                  borderRadius: 'var(--radius-md)', 
-                  border: '1px solid var(--border)',
-                  minHeight: '100px',
-                  fontFamily: 'inherit',
-                  marginBottom: '1.5rem'
-                }}
-              />
-              
+              <textarea required autoFocus value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} placeholder="Alasan penolakan..." style={{ width: '100%', padding: '0.75rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', minHeight: '100px', fontFamily: 'inherit', marginBottom: '1.5rem' }} />
               <div style={{ display: 'flex', gap: '1rem' }}>
-                <button 
-                  type="button"
-                  onClick={() => { setRejectingBooking(null); setRejectReason(""); }}
-                  style={{ flex: 1, padding: '0.75rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', background: 'white', fontWeight: 600, cursor: 'pointer' }}
-                >
-                  Batal
-                </button>
-                <button 
-                  type="submit"
-                  disabled={!!processingId}
-                  style={{ flex: 1, padding: '0.75rem', borderRadius: 'var(--radius-md)', border: 'none', background: '#EF4444', color: 'white', fontWeight: 600, cursor: 'pointer' }}
-                >
-                  Tolak Pengajuan
-                </button>
+                <button type="button" onClick={() => { setRejectingBooking(null); setRejectReason(""); }} style={{ flex: 1, padding: '0.75rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', background: 'white', fontWeight: 600, cursor: 'pointer' }}>Batal</button>
+                <button type="submit" disabled={!!processingId} style={{ flex: 1, padding: '0.75rem', borderRadius: 'var(--radius-md)', border: 'none', background: '#EF4444', color: 'white', fontWeight: 600, cursor: 'pointer' }}>Tolak Pengajuan</button>
               </div>
             </form>
           </div>
