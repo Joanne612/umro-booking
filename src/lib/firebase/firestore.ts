@@ -256,6 +256,19 @@ export const cancelBooking = async (bookingId: string) => {
   await updateDoc(bookingRef, { status: "cancelled" });
 };
 
+export const deleteBooking = async (bookingId: string) => {
+  if (!db) return;
+  const bookingRef = doc(db, "bookings", bookingId);
+  await deleteDoc(bookingRef);
+};
+
+export const getBookingsByGroupId = async (groupId: string): Promise<BookingData[]> => {
+  if (!db) return [];
+  const q = query(collection(db, "bookings"), where("groupId", "==", groupId));
+  const snap = await getDocs(q);
+  return snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as BookingData));
+};
+
 export const updateBookingMeetingLink = async (bookingId: string, link: string) => {
   if (!db) return;
   const bookingRef = doc(db, "bookings", bookingId);

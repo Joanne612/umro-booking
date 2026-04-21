@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { createBooking, updateBooking, checkBookingConflict, getDatesInRange, BookingData as FullBookingData, Room } from "@/lib/firebase/firestore";
+import { createBooking, updateBooking, checkBookingConflict, getDatesInRange, deleteBooking, getBookingsByGroupId, BookingData as FullBookingData, Room } from "@/lib/firebase/firestore";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/context/ToastContext";
 import styles from "../app/dashboard/dashboard.module.css";
@@ -157,27 +157,85 @@ export default function BookingModal({
 
       // 2. Process create/update
       if (editData?.id) {
-        const bookingPayload = {
-          roomId: formData.roomId,
-          roomName: room?.name || "Unknown",
-          title: formData.title,
-          division: formData.division,
-          participants: Number(formData.participants),
-          date: formData.date,
-          startTime: formData.startTime,
-          endTime: formData.endTime,
-          userId: user.uid,
-          userName: user.displayName || user.email || "Unknown",
-          createdAt: editData?.createdAt || new Date(),
-          ...(formData.consumption.requested ? {
-            consumption: {
-              ...formData.consumption,
-              status: (editData?.consumption?.status || "pending") as "pending" | "approved" | "rejected" | "completed"
+        const groupId = editData.groupId || (isMultiDay ? `group_${user.uid}_${Date.now()}` : undefined);
+        
+        // If it's a group, we need to sync others
+        if (groupId) {
+          const groupBookings = await getBookingsByGroupId(groupId);
+          const newDates = dates; // From getDatesInRange(formData.date, formData.endDate)
+          
+          // Identify existing dates in group
+          const existingDateMap = new Map(groupBookings.map(b => [b.date, b]));
+
+          // A. Update or Create for the new range
+          for (const date of newDates) {
+            const existingInGroup = existingDateMap.get(date);
+            const payload = {
+              roomId: formData.roomId,
+              roomName: room?.name || "Unknown",
+              title: formData.title,
+              division: formData.division,
+              participants: Number(formData.participants),
+              date: date,
+              startTime: formData.startTime,
+              endTime: formData.endTime,
+              userId: user.uid,
+              userName: user.displayName || user.email || "Unknown",
+              createdAt: existingInGroup?.createdAt || new Date(),
+              groupId: groupId,
+              endDate: formData.endDate, // Store the range info in every doc
+              ...(formData.consumption.requested ? {
+                consumption: {
+                  requested: true,
+                  morningSnack: formData.consumption.morningSnack,
+                  lunch: formData.consumption.lunch,
+                  afternoonSnack: formData.consumption.afternoonSnack,
+                  notes: formData.consumption.notes,
+                  status: (existingInGroup?.consumption?.status || "pending") as any
+                }
+              } : {})
+            };
+
+            if (existingInGroup?.id) {
+              await updateBooking(existingInGroup.id, payload);
+            } else {
+              await createBooking(payload);
             }
-          } : {})
-        };
-        await updateBooking(editData.id, bookingPayload);
-        showToast("Booking berhasil diperbarui!", "success");
+          }
+
+          // B. Delete those outside the new range
+          const newDateSet = new Set(newDates);
+          for (const b of groupBookings) {
+            if (!newDateSet.has(b.date) && b.id) {
+              await deleteBooking(b.id);
+            }
+          }
+          
+          showToast("Rangkaian booking berhasil diperbarui!", "success");
+        } else {
+          // Standard single edit (no groupId and not changing to range)
+          const bookingPayload = {
+            roomId: formData.roomId,
+            roomName: room?.name || "Unknown",
+            title: formData.title,
+            division: formData.division,
+            participants: Number(formData.participants),
+            date: formData.date,
+            startTime: formData.startTime,
+            endTime: formData.endTime,
+            userId: user.uid,
+            userName: user.displayName || user.email || "Unknown",
+            createdAt: editData?.createdAt || new Date(),
+            ...(formData.consumption.requested ? {
+              consumption: {
+                ...formData.consumption,
+                status: (editData?.consumption?.status || "pending") as "pending" | "approved" | "rejected" | "completed"
+              }
+            } : {})
+          };
+          await updateBooking(editData.id, bookingPayload);
+          showToast("Booking berhasil diperbarui!", "success");
+        }
       } else {
         const groupId = isMultiDay ? `group_${user.uid}_${Date.now()}` : undefined;
         
