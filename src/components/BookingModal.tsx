@@ -153,10 +153,12 @@ export default function BookingModal({
         userId: user.uid,
         userName: user.displayName || user.email || "Unknown",
         createdAt: editData?.createdAt || new Date(),
-        consumption: formData.consumption.requested ? {
-          ...formData.consumption,
-          status: editData?.consumption?.status || "pending"
-        } : undefined
+        ...(formData.consumption.requested ? {
+          consumption: {
+            ...formData.consumption,
+            status: editData?.consumption?.status || "pending"
+          }
+        } : {})
       };
 
       if (editData?.id) {
