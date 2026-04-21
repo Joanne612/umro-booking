@@ -180,7 +180,8 @@ export const checkBookingConflict = async (
   date: string, 
   startTime: string, 
   endTime: string,
-  excludeBookingId?: string
+  excludeBookingId?: string,
+  excludeGroupId?: string
 ): Promise<BookingData | null> => {
   if (!db) return null;
   
@@ -195,7 +196,11 @@ export const checkBookingConflict = async (
   const snapshot = await getDocs(q);
   const existingBookings = snapshot.docs
     .map(doc => ({ id: doc.id, ...doc.data() } as BookingData))
-    .filter(booking => booking.id !== excludeBookingId);
+    .filter(booking => {
+      if (excludeBookingId && booking.id === excludeBookingId) return false;
+      if (excludeGroupId && booking.groupId === excludeGroupId) return false;
+      return true;
+    });
 
   const conflict = existingBookings.find(booking => {
     return (startTime < booking.endTime && endTime > booking.startTime);
@@ -254,6 +259,14 @@ export const cancelBooking = async (bookingId: string) => {
   if (!db) return;
   const bookingRef = doc(db, "bookings", bookingId);
   await updateDoc(bookingRef, { status: "cancelled" });
+};
+
+export const cancelBookingSeries = async (groupId: string) => {
+  if (!db) return;
+  const q = query(collection(db, "bookings"), where("groupId", "==", groupId));
+  const snap = await getDocs(q);
+  const promises = snap.docs.map(doc => updateDoc(doc.ref, { status: "cancelled" }));
+  await Promise.all(promises);
 };
 
 export const deleteBooking = async (bookingId: string) => {

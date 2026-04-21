@@ -6,6 +6,7 @@ import { useToast } from "@/context/ToastContext";
 import { getUserVehicleBookings, cancelVehicleBooking, VehicleBooking } from "@/lib/firebase/firestore";
 import VehicleBookingModal from "@/components/VehicleBookingModal";
 import VehicleDetailModal from "@/components/VehicleDetailModal";
+import ConfirmationModal from "@/components/ConfirmationModal";
 import styles from "../dashboard.module.css";
 
 export default function VehiclesPage() {
@@ -16,6 +17,11 @@ export default function VehiclesPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<VehicleBooking | null>(null);
+  
+  // Confirmation State
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const [itemToCancel, setItemToCancel] = useState<string | null>(null);
+  const [cancelling, setCancelling] = useState(false);
 
   const fetchData = async () => {
     if (!user) return;
@@ -40,14 +46,24 @@ export default function VehiclesPage() {
     setIsDetailOpen(true);
   };
 
-  const handleCancel = async (id: string) => {
-    if (!confirm("Apakah Anda yakin ingin membatalkan pengajuan kendaraan ini?")) return;
+  const handleCancelClick = (id: string) => {
+    setItemToCancel(id);
+    setIsConfirmOpen(true);
+  };
+
+  const handleCancelConfirm = async () => {
+    if (!itemToCancel) return;
+    setCancelling(true);
     try {
-      await cancelVehicleBooking(id);
+      await cancelVehicleBooking(itemToCancel);
       showToast("Pengajuan berhasil dibatalkan.", "success");
+      setIsConfirmOpen(false);
+      setItemToCancel(null);
       fetchData();
     } catch (error: any) {
       showToast("Gagal membatalkan: " + error.message, "error");
+    } finally {
+      setCancelling(false);
     }
   };
 
@@ -145,7 +161,7 @@ export default function VehiclesPage() {
               <div style={{ display: 'flex', gap: '0.5rem' }}>
                 {booking.status === 'pending' && (
                   <button 
-                    onClick={() => handleCancel(booking.id!)}
+                    onClick={() => handleCancelClick(booking.id!)}
                     style={{ 
                       padding: '0.5rem 0.75rem', 
                       borderRadius: 'var(--radius-sm)', 
@@ -192,6 +208,19 @@ export default function VehiclesPage() {
         onClose={() => setIsDetailOpen(false)}
         booking={selectedBooking}
       />
+
+      {isConfirmOpen && (
+        <ConfirmationModal
+          isOpen={isConfirmOpen}
+          onClose={() => setIsConfirmOpen(false)}
+          onConfirm={handleCancelConfirm}
+          title="Konfirmasi Pembatalan"
+          message="Apakah Anda yakin ingin membatalkan pengajuan kendaraan ini?"
+          confirmLabel="Ya, Batalkan"
+          cancelLabel="Kembali"
+          isLoading={cancelling}
+        />
+      )}
     </div>
   );
 }

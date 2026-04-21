@@ -144,12 +144,12 @@ export default function BookingModal({
     setLoading(true);
     try {
       const room = rooms.find(r => r.id === formData.roomId);
-      const isMultiDay = formData.endDate > formData.date && !editData;
+      const isMultiDay = formData.endDate > formData.date;
       const dates = isMultiDay ? getDatesInRange(formData.date, formData.endDate) : [formData.date];
 
       // 1. Check conflicts for ALL days first
       for (const date of dates) {
-        const conflictOnDate = await checkBookingConflict(formData.roomId, date, formData.startTime, formData.endTime, editData?.id);
+        const conflictOnDate = await checkBookingConflict(formData.roomId, date, formData.startTime, formData.endTime, editData?.id, editData?.groupId);
         if (conflictOnDate) {
           throw new Error(`Bentrok pada tanggal ${date}: Ruangan ini sudah dibooking oleh ${conflictOnDate.userName} (${conflictOnDate.startTime} - ${conflictOnDate.endTime}).`);
         }
@@ -309,19 +309,17 @@ export default function BookingModal({
                 className={styles.textInput} 
               />
             </div>
-            {!editData && (
-              <div className={styles.formGroup}>
-                <label className={styles.formLabel}>Sampai Tanggal</label>
-                <input 
-                  type="date" 
-                  required 
-                  min={formData.date}
-                  value={formData.endDate} 
-                  onChange={e => setFormData({...formData, endDate: e.target.value})} 
-                  className={styles.textInput} 
-                />
-              </div>
-            )}
+            <div className={styles.formGroup}>
+              <label className={styles.formLabel}>Sampai Tanggal</label>
+              <input 
+                type="date" 
+                required 
+                min={formData.date}
+                value={formData.endDate} 
+                onChange={e => setFormData({...formData, endDate: e.target.value})} 
+                className={styles.textInput} 
+              />
+            </div>
           </div>
 
           <div className={styles.formGroup}>
