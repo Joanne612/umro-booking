@@ -1,0 +1,230 @@
+"use client";
+
+import { useState } from "react";
+import { createVehicleBooking, VehicleBooking } from "@/lib/firebase/firestore";
+import { useAuth } from "@/context/AuthContext";
+import { useToast } from "@/context/ToastContext";
+import styles from "../app/dashboard/dashboard.module.css";
+
+interface VehicleBookingModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSuccess: () => void;
+}
+
+export default function VehicleBookingModal({ isOpen, onClose, onSuccess }: VehicleBookingModalProps) {
+  const { user } = useAuth();
+  const { showToast } = useToast();
+  const [loading, setLoading] = useState(false);
+
+  const [formData, setFormData] = useState({
+    tripType: "pp" as "pp" | "one_way",
+    date: new Date().toISOString().split('T')[0],
+    duration: 1,
+    userName: user?.displayName || "",
+    userPhone: "",
+    passengers: 1,
+    event: "",
+    pickupTime: "08:00",
+    pickupLocation: "",
+    destination: ""
+  });
+
+  if (!isOpen) return null;
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return showToast("Sesi habis, silakan login kembali.", "error");
+
+    if (!formData.pickupLocation.trim() || !formData.destination.trim() || !formData.event.trim()) {
+      return showToast("Mohon lengkapi semua field yang tersedia.", "warning");
+    }
+
+    setLoading(true);
+    try {
+      await createVehicleBooking({
+        userId: user.uid,
+        userName: formData.userName,
+        userPhone: formData.userPhone,
+        tripType: formData.tripType,
+        date: formData.date,
+        duration: Number(formData.duration),
+        passengers: Number(formData.passengers),
+        event: formData.event,
+        pickupTime: formData.pickupTime,
+        pickupLocation: formData.pickupLocation,
+        destination: formData.destination
+      });
+      
+      showToast("Pengajuan kendaraan berhasil dikirim! Menunggu persetujuan pihak Umum.", "success");
+      onSuccess();
+      onClose();
+    } catch (error: any) {
+      showToast("Gagal mengirim pengajuan: " + error.message, "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className={styles.modalOverlay}>
+      <div className={styles.modalContent} style={{ maxWidth: '600px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
+          <h2 style={{ fontSize: '1.25rem', fontWeight: 600 }}>Formulir Peminjaman Kendaraan</h2>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: 'var(--text-muted)' }}>&times;</button>
+        </div>
+
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          
+          <div className={styles.formGroup}>
+            <label className={styles.formLabel}>Jenis Perjalanan</label>
+            <div style={{ display: 'flex', gap: '2rem', marginTop: '0.5rem' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                <input 
+                  type="radio" 
+                  name="tripType" 
+                  checked={formData.tripType === "pp"} 
+                  onChange={() => setFormData({...formData, tripType: "pp"})}
+                  style={{ width: '18px', height: '18px', accentColor: 'var(--primary)' }}
+                />
+                Pulang Pergi (PP)
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                <input 
+                  type="radio" 
+                  name="tripType" 
+                  checked={formData.tripType === "one_way"} 
+                  onChange={() => setFormData({...formData, tripType: "one_way"})}
+                  style={{ width: '18px', height: '18px', accentColor: 'var(--primary)' }}
+                />
+                Sekali Jalan
+              </label>
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+            <div className={styles.formGroup}>
+              <label className={styles.formLabel}>Hari / Tanggal</label>
+              <input 
+                type="date" 
+                required 
+                value={formData.date} 
+                onChange={e => setFormData({...formData, date: e.target.value})} 
+                className={styles.textInput} 
+              />
+            </div>
+            <div className={styles.formGroup}>
+              <label className={styles.formLabel}>Jumlah Hari</label>
+              <input 
+                type="number" 
+                min="1" 
+                required 
+                value={formData.duration} 
+                onChange={e => {
+                  const val = e.target.value === "" ? "" : parseInt(e.target.value);
+                  setFormData({...formData, duration: val as any});
+                }} 
+                className={styles.textInput} 
+              />
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1rem' }}>
+            <div className={styles.formGroup}>
+              <label className={styles.formLabel}>Nama Pengguna / PIC</label>
+              <input 
+                type="text" 
+                required 
+                placeholder="Nama Lengkap" 
+                value={formData.userName} 
+                onChange={e => setFormData({...formData, userName: e.target.value})} 
+                className={styles.textInput} 
+              />
+            </div>
+            <div className={styles.formGroup}>
+              <label className={styles.formLabel}>No. HP PIC</label>
+              <input 
+                type="tel" 
+                required 
+                placeholder="Contoh: 0812..." 
+                value={formData.userPhone} 
+                onChange={e => setFormData({...formData, userPhone: e.target.value})} 
+                className={styles.textInput} 
+              />
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+             <div className={styles.formGroup}>
+              <label className={styles.formLabel}>Jumlah Penumpang</label>
+              <input 
+                type="number" 
+                min="1" 
+                required 
+                value={formData.passengers} 
+                onChange={e => {
+                  const val = e.target.value === "" ? "" : parseInt(e.target.value);
+                  setFormData({...formData, passengers: val as any});
+                }} 
+                className={styles.textInput} 
+              />
+            </div>
+            <div className={styles.formGroup}>
+              <label className={styles.formLabel}>Jam Penjemputan</label>
+              <input 
+                type="time" 
+                required 
+                value={formData.pickupTime} 
+                onChange={e => setFormData({...formData, pickupTime: e.target.value})} 
+                className={styles.textInput} 
+              />
+            </div>
+          </div>
+
+          <div className={styles.formGroup}>
+            <label className={styles.formLabel}>Acara / Keperluan Penggunaan</label>
+            <input 
+              type="text" 
+              required 
+              placeholder="Cth: Management Walkdown Repair Coupling" 
+              value={formData.event} 
+              onChange={e => setFormData({...formData, event: e.target.value})} 
+              className={styles.textInput} 
+            />
+          </div>
+
+          <div className={styles.formGroup}>
+            <label className={styles.formLabel}>Tempat Penjemputan (Detail Alamat)</label>
+            <textarea 
+              required 
+              placeholder="Masukkan alamat lengkap penjemputan..." 
+              value={formData.pickupLocation} 
+              onChange={e => setFormData({...formData, pickupLocation: e.target.value})} 
+              className={styles.textInput} 
+              style={{ minHeight: '80px', fontFamily: 'inherit' }}
+            />
+          </div>
+
+          <div className={styles.formGroup}>
+            <label className={styles.formLabel}>Tujuan</label>
+            <input 
+              type="text" 
+              required 
+              placeholder="Cth: PLTU Indramayu" 
+              value={formData.destination} 
+              onChange={e => setFormData({...formData, destination: e.target.value})} 
+              className={styles.textInput} 
+            />
+          </div>
+
+          <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
+            <button type="button" onClick={onClose} style={{ flex: 1, padding: '0.875rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', background: 'white', fontWeight: 600, cursor: 'pointer' }}>Batal</button>
+            <button type="submit" disabled={loading} style={{ flex: 1, padding: '0.875rem', borderRadius: 'var(--radius-md)', border: 'none', background: 'var(--primary)', color: 'white', fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer' }}>
+              {loading ? 'Mengirim...' : 'Ajukan Peminjaman'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}

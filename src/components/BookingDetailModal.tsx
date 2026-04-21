@@ -282,6 +282,65 @@ export default function BookingDetailModal({ booking, onClose, onRefresh }: Book
                     </div>
                   )}
                 </div>
+                {/* --- SEKSI KONSUMSI --- */}
+                {booking.consumption?.requested && (
+                  <div style={{ 
+                    padding: '1rem', 
+                    borderRadius: 'var(--radius-md)', 
+                    border: '1px solid #E2E8F0', 
+                    background: '#F8FAFC',
+                    animation: 'fadeIn 0.5s ease'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                      <div style={{ fontSize: '0.875rem', fontWeight: 700, color: '#475569', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        🍱 FASILITAS KONSUMSI
+                      </div>
+                      <span style={{
+                        padding: '0.25rem 0.6rem',
+                        borderRadius: '100px',
+                        fontSize: '0.7rem',
+                        fontWeight: 700,
+                        textTransform: 'uppercase',
+                        backgroundColor: booking.consumption.status === 'approved' ? '#DCFCE7' : (booking.consumption.status === 'rejected' ? '#FEE2E2' : '#FFEDD5'),
+                        color: booking.consumption.status === 'approved' ? '#166534' : (booking.consumption.status === 'rejected' ? '#991B1B' : '#9A3412'),
+                        border: '1px solid currentColor'
+                      }}>
+                        {booking.consumption.status === 'approved' ? '✓ Disetujui' : (booking.consumption.status === 'rejected' ? '✗ Ditolak' : '◷ Menunggu')}
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '1rem', marginBottom: '0.5rem' }}>
+                      {booking.consumption.snack && (
+                        <div style={{ fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                          🍰 Snack
+                        </div>
+                      )}
+                      {booking.consumption.lunch && (
+                        <div style={{ fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                          🍱 Makan Siang
+                        </div>
+                      )}
+                    </div>
+
+                    {booking.consumption.notes && (
+                      <div style={{ fontSize: '0.8rem', color: '#64748B', fontStyle: 'italic', background: 'white', padding: '0.4rem', borderRadius: '4px', border: '1px dashed #CBD5E1' }}>
+                        " {booking.consumption.notes} "
+                      </div>
+                    )}
+
+                    {booking.consumption.status === 'approved' && (
+                      <div style={{ marginTop: '0.75rem', fontSize: '0.75rem', color: '#166534', fontWeight: 500 }}>
+                        Disetujui oleh: {booking.consumption.approvedByName || 'Asman Umum'}
+                      </div>
+                    )}
+                    
+                    {booking.consumption.status === 'rejected' && booking.consumption.rejectReason && (
+                      <div style={{ marginTop: '0.75rem', fontSize: '0.75rem', color: '#991B1B', fontWeight: 600 }}>
+                        Alasan Penolakan: {booking.consumption.rejectReason}
+                      </div>
+                    )}
+                  </div>
+                )}
                 {/* ------------------------- */}
 
 

@@ -4,6 +4,14 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "UMRO Booking | PT PLN Nusantara Power",
   description: "Aplikasi penjadwalan ruang meeting Unit Maintenance, Repair & Overhaul PLN",
+  icons: {
+    icon: [
+      { url: "/pln-logo.png" },
+      { url: "/pln-logo.png", media: "(prefers-color-scheme: dark)" },
+    ],
+    shortcut: "/pln-logo.png",
+    apple: "/pln-logo.png",
+  },
 };
 
 import { AuthProvider } from "@/context/AuthContext";

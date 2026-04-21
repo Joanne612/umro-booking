@@ -47,7 +47,7 @@ export default function Home() {
       </div>
       <div className={styles.rightPanel}>
         <div className={styles.loginCard}>
-          <div className={styles.logoPlaceholder}>⚡</div>
+          <img src="/pln-logo.png" alt="PLN Logo" style={{ width: '60px', height: 'auto', marginBottom: '1.5rem' }} />
           <h2>Masuk ke Akun Anda</h2>
           <p className={styles.loginSubtitle}>Gunakan akun SSO Google Anda untuk melanjutkan</p>
 

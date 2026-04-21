@@ -40,7 +40,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {/* Sidebar */}
       <aside className={`${styles.sidebar} ${sidebarOpen ? styles.open : ""}`}>
         <div className={styles.sidebarHeader}>
-          <div className={styles.plnLogo}>⚡</div>
+          <img src="/pln-logo.png" alt="PLN Logo" style={{ width: '40px', height: 'auto' }} />
           <div className={styles.headerText}>
             <h2>UMRO Booking</h2>
             <p>PT PLN Nusantara Power</p>
@@ -58,6 +58,29 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               Booking Saya
             </Link>
           )}
+
+          {userRole !== "view" && (
+            <Link href="/dashboard/vehicles" className={`${styles.navItem} ${pathname === "/dashboard/vehicles" ? styles.active : ""}`}>
+              <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0" /></svg>
+              Peminjaman Kendaraan
+            </Link>
+          )}
+
+          {/* New Approval Link for Asman & Admin */}
+          {(userRole === "asman" || userRole === "admin") && (
+            <Link href="/dashboard/approvals" className={`${styles.navItem} ${pathname === "/dashboard/approvals" ? styles.active : ""}`}>
+              <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>
+              Panel Persetujuan
+            </Link>
+          )}
+
+          {(userRole === "umum" || userRole === "admin") && (
+            <Link href="/dashboard/vehicles/approvals" className={`${styles.navItem} ${pathname === "/dashboard/vehicles/approvals" ? styles.active : ""}`}>
+              <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
+              Persetujuan Kendaraan
+            </Link>
+          )}
+
           <Link href="/dashboard/profile" className={`${styles.navItem} ${pathname === "/dashboard/profile" ? styles.active : ""}`}>
             <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
             Profil Pengguna
@@ -104,7 +127,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             >
               <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
             </button>
-            <h1 className={styles.pageTitle}>{pathname === '/dashboard' ? 'Overview Jadwal' : (pathname === '/dashboard/my-bookings' ? 'Booking Saya' : (pathname === '/dashboard/profile' ? 'Pengaturan Profil' : 'Admin Panel'))}</h1>
+            <h1 className={styles.pageTitle}>
+              {pathname === '/dashboard' ? 'Overview Jadwal' : 
+               pathname === '/dashboard/my-bookings' ? 'Booking Saya' : 
+               pathname === '/dashboard/profile' ? 'Pengaturan Profil' : 
+               pathname === '/dashboard/approvals' ? 'Panel Persetujuan' :
+               pathname === '/dashboard/vehicles' ? 'Peminjaman Kendaraan' :
+               pathname === '/dashboard/vehicles/approvals' ? 'Persetujuan Kendaraan' :
+               'Admin Panel'}
+            </h1>
           </div>
         </header>
         <div className={styles.contentScroll}>

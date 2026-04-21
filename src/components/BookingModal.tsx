@@ -37,7 +37,13 @@ export default function BookingModal({ isOpen, onClose, rooms, selectedDate, ini
     division: "",
     participants: 1,
     startTime: initialTime || "09:00",
-    endTime: "10:00" // Will be synced in useEffect
+    endTime: "10:00", // Will be synced in useEffect
+    consumption: {
+      requested: false,
+      snack: false,
+      lunch: false,
+      notes: ""
+    }
   });
 
   const [conflict, setConflict] = useState<FullBookingData | null>(null);
@@ -111,9 +117,18 @@ export default function BookingModal({ isOpen, onClose, rooms, selectedDate, ini
         endTime: formData.endTime,
         userId: user.uid,
         userName: user.displayName || user.email || "Unknown",
-        createdAt: new Date() // Placeholder, converted to Timestamp in firestore.ts
+        createdAt: new Date(), // Placeholder, converted to Timestamp in firestore.ts
+        consumption: formData.consumption.requested ? {
+          ...formData.consumption,
+          status: "pending"
+        } : undefined
       });
-      showToast("Booking berhasil dibuat!", "success");
+      showToast(
+        formData.consumption.requested 
+          ? "Booking berhasil! Permintaan konsumsi sedang menunggu persetujuan Asman Umum." 
+          : "Booking berhasil dibuat!", 
+        "success"
+      );
       onClose();
     } catch (error: any) {
       showToast("Gagal membooking: " + error.message, "error");
@@ -234,6 +249,78 @@ export default function BookingModal({ isOpen, onClose, rooms, selectedDate, ini
                 {timeSlots.map(time => <option key={time} value={time}>{time}</option>)}
               </select>
             </div>
+          </div>
+
+          {/* CONSUMPTION SECTION */}
+          <div style={{ 
+            marginTop: '0.5rem', 
+            padding: '1rem', 
+            borderRadius: 'var(--radius-md)', 
+            border: formData.consumption.requested ? '1px solid var(--primary)' : '1px solid var(--border)',
+            background: formData.consumption.requested ? 'rgba(59, 130, 246, 0.02)' : 'var(--surface)',
+            transition: 'all 0.3s ease'
+          }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', fontWeight: 600, marginBottom: formData.consumption.requested ? '1rem' : '0' }}>
+              <input 
+                type="checkbox" 
+                checked={formData.consumption.requested} 
+                onChange={(e) => setFormData({ 
+                  ...formData, 
+                  consumption: { ...formData.consumption, requested: e.target.checked }
+                })}
+                style={{ width: '18px', height: '18px', accentColor: 'var(--primary)' }}
+              />
+              🍴 Ingin Memesan Fasilitas Konsumsi?
+            </label>
+
+            {formData.consumption.requested && (
+              <div style={{ animation: 'fadeIn 0.3s ease', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div style={{ display: 'flex', gap: '1.5rem', paddingLeft: '2rem' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem', cursor: 'pointer' }}>
+                    <input 
+                      type="checkbox" 
+                      checked={formData.consumption.snack} 
+                      onChange={(e) => setFormData({ 
+                        ...formData, 
+                        consumption: { ...formData.consumption, snack: e.target.checked }
+                      })}
+                      style={{ accentColor: 'var(--primary)' }}
+                    />
+                    Snack (Kue)
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem', cursor: 'pointer' }}>
+                    <input 
+                      type="checkbox" 
+                      checked={formData.consumption.lunch} 
+                      onChange={(e) => setFormData({ 
+                        ...formData, 
+                        consumption: { ...formData.consumption, lunch: e.target.checked }
+                      })}
+                      style={{ accentColor: 'var(--primary)' }}
+                    />
+                    Makan Siang (Nasi Kotak)
+                  </label>
+                </div>
+                
+                <div style={{ paddingLeft: '2rem' }}>
+                  <label className={styles.formLabel} style={{ fontSize: '0.8rem' }}>Catatan Khusus (Opsional)</label>
+                  <input 
+                    type="text" 
+                    placeholder="Cth: Alergi kacang, Vegetarian, dsb." 
+                    value={formData.consumption.notes}
+                    onChange={(e) => setFormData({ 
+                      ...formData, 
+                      consumption: { ...formData.consumption, notes: e.target.value } 
+                    })}
+                    className={styles.textInput}
+                    style={{ fontSize: '0.875rem', padding: '0.5rem' }}
+                  />
+                  <p style={{ fontSize: '0.75rem', color: 'var(--primary)', marginTop: '0.5rem', fontStyle: 'italic' }}>
+                    *Permintaan konsumsi memerlukan persetujuan dari Asman Umum.
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
 
           <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
