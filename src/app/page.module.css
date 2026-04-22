@@ -6,7 +6,8 @@
 
 .leftPanel {
   flex: 1;
-  background: linear-gradient(135deg, var(--secondary) 0%, var(--primary) 100%);
+  background: linear-gradient(135deg, #13878F 0%, #20757a 100%);
+  /* Tosca cerah */
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -24,7 +25,8 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background-image: url('https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&q=80&w=1200'); /* Abstract corporate meeting room */
+  background-image: url('https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&q=80&w=1200');
+  /* Abstract corporate meeting room */
   background-size: cover;
   background-position: center;
   opacity: 0.2;
@@ -53,13 +55,20 @@
 .plnLogo {
   width: 140px;
   height: auto;
-  filter: drop-shadow(0 4px 12px rgba(0,0,0,0.2));
+  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.2));
   animation: fadeInLeft 0.8s ease;
 }
 
 @keyframes fadeInLeft {
-  from { opacity: 0; transform: translateX(-20px); }
-  to { opacity: 1; transform: translateX(0); }
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
 .title {
@@ -67,7 +76,7 @@
   font-weight: 700;
   margin-bottom: 1rem;
   letter-spacing: -0.025em;
-  text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
 .subtitle {
@@ -137,7 +146,7 @@
 
 .googleBtn:hover {
   background: #F8F9FA;
-  box-shadow: 0 1px 2px 0 rgba(60,64,67,0.30), 0 1px 3px 1px rgba(60,64,67,0.15);
+  box-shadow: 0 1px 2px 0 rgba(60, 64, 67, 0.30), 0 1px 3px 1px rgba(60, 64, 67, 0.15);
   transform: none;
 }
 
@@ -145,16 +154,20 @@
   .container {
     flex-direction: column;
   }
+
   .leftPanel {
     padding: 2rem;
     min-height: 40vh;
   }
+
   .title {
     font-size: 2.5rem;
   }
+
   .logoWrapper {
     gap: 1.5rem;
   }
+
   .plnLogo {
     width: 100px;
   }
@@ -166,6 +179,7 @@
     text-align: center;
     gap: 1rem;
   }
+
   .branding {
     padding: 2rem 1.5rem;
   }
