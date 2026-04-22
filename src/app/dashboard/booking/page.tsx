@@ -165,7 +165,7 @@ export default function BookingPage() {
 
       <div style={{ marginBottom: '2rem' }}>
         <CalendarView 
-          bookings={bookings}
+          bookings={bookings.filter(b => filteredRooms.some(r => r.id === b.roomId))}
           selectedRoomId={selectedRoomId}
           roomColors={roomColors}
           onDateClick={handleDateClick}

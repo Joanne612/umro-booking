@@ -207,6 +207,52 @@ export default function MyBookingsPage() {
                         ? `${new Date((b as any).minDate).toLocaleDateString()} - ${new Date((b as any).maxDate).toLocaleDateString()}`
                         : new Date(b.date).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
                     </p>
+
+                    {activeTab === 'zoom' && b.meetingLink && (
+                      <div style={{ 
+                        marginTop: '1rem', 
+                        padding: '1rem', 
+                        background: '#F8FAFC', 
+                        borderRadius: 'var(--radius-md)', 
+                        border: '1px solid #E2E8F0',
+                        fontSize: '0.8125rem',
+                        position: 'relative'
+                      }}>
+                        <div style={{ 
+                          display: 'flex', 
+                          justifyContent: 'space-between', 
+                          alignItems: 'center', 
+                          marginBottom: '0.5rem',
+                          borderBottom: '1px solid #E2E8F0',
+                          paddingBottom: '0.5rem'
+                        }}>
+                          <span style={{ fontWeight: 700, color: 'var(--primary)', fontSize: '0.75rem' }}>🔗 INFORMASI ZOOM / MEETING</span>
+                          <button 
+                            onClick={() => {
+                              navigator.clipboard.writeText(b.meetingLink || "");
+                              alert("Undangan disalin ke clipboard!");
+                            }}
+                            style={{ 
+                              background: 'white', 
+                              border: '1px solid var(--border)', 
+                              padding: '2px 8px', 
+                              fontSize: '0.7rem', 
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              fontWeight: 600
+                            }}
+                          >Salin Undangan</button>
+                        </div>
+                        <div style={{ 
+                          whiteSpace: 'pre-wrap', 
+                          fontFamily: 'monospace', 
+                          color: '#334155',
+                          lineHeight: '1.5'
+                        }}>
+                          {b.meetingLink}
+                        </div>
+                      </div>
+                    )}
                   </div>
                   <div style={{ display: 'flex', gap: '0.5rem' }}>
                     {b.status === 'active' && (

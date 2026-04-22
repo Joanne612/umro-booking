@@ -10,17 +10,23 @@ import {
   getPendingVehicleBookings,
   getWaitingAsmanVehicleBookings,
   getMyRecentActivity,
+  getIncompleteZoomBookings,
+  updateBookingLink,
   BookingData,
   ItemRequest,
   VehicleBooking
 } from "@/lib/firebase/firestore";
 import styles from "./dashboard.module.css";
 import Link from "next/link";
+import UpdateLinkModal from "@/components/UpdateLinkModal";
 
 export default function DashboardMonitoring() {
   const { user, userRole } = useAuth();
   const [stats, setStats] = useState<any>(null);
   const [pendingItems, setPendingItems] = useState<{ id: string, title: string, type: string, user: string, link?: string }[]>([]);
+  const [incompleteZoomBookings, setIncompleteZoomBookings] = useState<BookingData[]>([]);
+  const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
+  const [selectedBookingForLink, setSelectedBookingForLink] = useState<BookingData | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -67,6 +73,12 @@ export default function DashboardMonitoring() {
           }));
         }
         setPendingItems(list);
+
+        // Fetch Incomplete Zoom Bookings for ADMIN only
+        if (userRole === "admin") {
+          const zoomPending = await getIncompleteZoomBookings();
+          setIncompleteZoomBookings(zoomPending);
+        }
       } catch (error) {
         console.error("Error fetching stats:", error);
       } finally {
@@ -90,6 +102,69 @@ export default function DashboardMonitoring() {
         </h2>
         <p style={{ color: 'var(--text-muted)' }}>Berikut adalah ringkasan aktivitas UMRO untuk bulan ini.</p>
       </div>
+
+      {/* Admin Specific: Zoom Link Monitoring */}
+      {userRole === "admin" && incompleteZoomBookings.length > 0 && (
+        <div className={styles.card} style={{ marginBottom: '2rem', borderLeft: '4px solid var(--primary)', background: '#F0F9FF', animation: 'fadeIn 0.5s ease' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+            <div>
+              <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0369A1' }}>🌐 Monitoring Link Zoom</h3>
+              <p style={{ fontSize: '0.875rem', color: '#0C4A6E' }}>Terdapat {incompleteZoomBookings.length} pemesanan Zoom yang belum memiliki link meeting.</p>
+            </div>
+          </div>
+          
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1rem' }}>
+            {incompleteZoomBookings.map((b) => (
+              <div key={b.id} className={styles.actionItem} style={{ background: 'white', flexDirection: 'column', alignItems: 'flex-start', gap: '1rem', padding: '1.25rem' }}>
+                <div className={styles.actionInfo}>
+                  <h4 style={{ color: 'var(--foreground)' }}>{b.title}</h4>
+                  <p className={styles.actionMeta} style={{ margin: '0.25rem 0' }}>
+                    📍 {b.roomName} &bull; 👤 {b.userName}
+                  </p>
+                  <p className={styles.actionMeta}>
+                    📅 {new Date(b.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })} &bull; 🕒 {b.startTime} - {b.endTime}
+                  </p>
+                </div>
+                <button 
+                  onClick={() => {
+                    setSelectedBookingForLink(b);
+                    setIsLinkModalOpen(true);
+                  }}
+                  style={{ 
+                    width: '100%', 
+                    padding: '0.6rem', 
+                    background: 'var(--primary)', 
+                    color: 'white', 
+                    border: 'none', 
+                    borderRadius: 'var(--radius-sm)', 
+                    fontWeight: 600, 
+                    cursor: 'pointer',
+                    fontSize: '0.875rem'
+                  }}
+                >
+                  Input Link Meeting
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Modern Link Modal */}
+      <UpdateLinkModal
+        isOpen={isLinkModalOpen}
+        onClose={() => {
+          setIsLinkModalOpen(false);
+          setSelectedBookingForLink(null);
+        }}
+        booking={selectedBookingForLink}
+        onSave={async (link) => {
+          if (selectedBookingForLink?.id) {
+            await updateBookingLink(selectedBookingForLink.id, link);
+            setIncompleteZoomBookings(prev => prev.filter(item => item.id !== selectedBookingForLink.id));
+          }
+        }}
+      />
 
       {/* Stats Cards */}
       <div className={styles.statsGrid}>

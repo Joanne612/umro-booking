@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/context/ToastContext";
 import { getUserItemRequests, deleteItemRequest, ItemRequest } from "@/lib/firebase/firestore";
@@ -9,6 +10,7 @@ import ConfirmationModal from "@/components/ConfirmationModal";
 import styles from "../dashboard.module.css";
 
 export default function ItemRequestsPage() {
+  const router = useRouter();
   const { user } = useAuth();
   const { showToast } = useToast();
   const [requests, setRequests] = useState<ItemRequest[]>([]);
@@ -84,6 +86,9 @@ export default function ItemRequestsPage() {
         gap: '1rem'
       }}>
         <div>
+          <button onClick={() => router.push('/dashboard/booking')} className={styles.backBtn}>
+            &larr; Ganti Kategori
+          </button>
           <h2 style={{ fontSize: '1.5rem', fontWeight: 700 }}>Permintaan Barang</h2>
           <p style={{ color: 'var(--text-muted)' }}>Kelola pengajuan ATK, IT Part, dan kebutuhan barang lainnya.</p>
         </div>

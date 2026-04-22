@@ -298,6 +298,42 @@ export const deleteBooking = async (bookingId: string) => {
   await deleteDoc(bookingRef);
 };
 
+export const getIncompleteZoomBookings = async (): Promise<BookingData[]> => {
+  if (!db) return [];
+  try {
+    // 1. Dapatkan daftar ID ruangan online (Zoom)
+    const roomsSnap = await getDocs(collection(db, "rooms"));
+    const onlineRoomIds = roomsSnap.docs
+      .filter(doc => (doc.data() as Room).type === "online")
+      .map(doc => doc.id);
+
+    if (onlineRoomIds.length === 0) return [];
+
+    // 2. Cari booking aktif untuk ruangan tersebut yang belum punya link
+    const q = query(
+      collection(db, "bookings"),
+      where("status", "==", "active"),
+      where("roomId", "in", onlineRoomIds)
+    );
+    
+    const snap = await getDocs(q);
+    // Filter manual untuk string kosong atau field tidak ada
+    return snap.docs
+      .map(doc => ({ id: doc.id, ...doc.data() } as BookingData))
+      .filter(b => !b.meetingLink || b.meetingLink.trim() === "");
+  } catch (error) {
+    console.error("Error fetching incomplete zoom bookings:", error);
+    return [];
+  }
+};
+
+export const updateBookingLink = async (bookingId: string, link: string) => {
+  if (!db) return;
+  const docRef = doc(db, "bookings", bookingId);
+  await updateDoc(docRef, { meetingLink: link });
+};
+
+
 export const getBookingsByGroupId = async (groupId: string): Promise<BookingData[]> => {
   if (!db) return [];
   const q = query(collection(db, "bookings"), where("groupId", "==", groupId));

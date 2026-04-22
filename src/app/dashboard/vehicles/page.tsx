@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/context/ToastContext";
 import { getUserVehicleBookings, cancelVehicleBooking, VehicleBooking } from "@/lib/firebase/firestore";
@@ -10,6 +11,7 @@ import ConfirmationModal from "@/components/ConfirmationModal";
 import styles from "../dashboard.module.css";
 
 export default function VehiclesPage() {
+  const router = useRouter();
   const { user } = useAuth();
   const { showToast } = useToast();
   const [bookings, setBookings] = useState<VehicleBooking[]>([]);
@@ -96,6 +98,9 @@ export default function VehiclesPage() {
         gap: '1rem' 
       }}>
         <div>
+          <button onClick={() => router.push('/dashboard/booking')} className={styles.backBtn}>
+            &larr; Ganti Kategori
+          </button>
           <h2 style={{ fontSize: '1.5rem', fontWeight: 700 }}>Peminjaman Kendaraan</h2>
           <p style={{ color: 'var(--text-muted)' }}>Kelola pengajuan kendaraan operasional UMRO.</p>
         </div>
