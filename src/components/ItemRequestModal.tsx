@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { createItemRequest, ItemRequest } from "@/lib/firebase/firestore";
+import { useEffect, useState } from "react";
+import { createItemRequest, updateItemRequest, ItemRequest } from "@/lib/firebase/firestore";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/context/ToastContext";
 import styles from "../app/dashboard/dashboard.module.css";
@@ -10,9 +10,10 @@ interface ItemRequestModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  editItem?: ItemRequest | null;
 }
 
-export default function ItemRequestModal({ isOpen, onClose, onSuccess }: ItemRequestModalProps) {
+export default function ItemRequestModal({ isOpen, onClose, onSuccess, editItem }: ItemRequestModalProps) {
   const { user } = useAuth();
   const { showToast } = useToast();
   const [loading, setLoading] = useState(false);
@@ -26,6 +27,27 @@ export default function ItemRequestModal({ isOpen, onClose, onSuccess }: ItemReq
   });
 
   const [currentLink, setCurrentLink] = useState("");
+
+  useEffect(() => {
+    if (isOpen && editItem) {
+      setFormData({
+        category: editItem.category,
+        title: editItem.title,
+        division: editItem.division,
+        description: editItem.description,
+        purchaseLinks: editItem.purchaseLinks || [],
+      });
+    } else if (isOpen && !editItem) {
+      // Reset if not editing
+      setFormData({
+        category: "Permintaan ATK",
+        title: "",
+        division: "",
+        description: "",
+        purchaseLinks: [],
+      });
+    }
+  }, [isOpen, editItem]);
 
   if (!isOpen) return null;
 
@@ -57,27 +79,30 @@ export default function ItemRequestModal({ isOpen, onClose, onSuccess }: ItemReq
 
     setLoading(true);
     try {
-      await createItemRequest({
-        userId: user.uid,
-        userName: user.displayName || user.email || "Unknown",
-        division: formData.division,
-        category: formData.category,
-        title: formData.title,
-        description: formData.description,
-        purchaseLinks: formData.purchaseLinks,
-      });
+      if (editItem && editItem.id) {
+        await updateItemRequest(editItem.id, {
+          category: formData.category,
+          title: formData.title,
+          division: formData.division,
+          description: formData.description,
+          purchaseLinks: formData.purchaseLinks,
+        });
+        showToast("Permintaan barang berhasil diperbarui!", "success");
+      } else {
+        await createItemRequest({
+          userId: user.uid,
+          userName: user.displayName || user.email || "Unknown",
+          division: formData.division,
+          category: formData.category,
+          title: formData.title,
+          description: formData.description,
+          purchaseLinks: formData.purchaseLinks,
+        });
+        showToast("Permintaan barang berhasil dikirim! Menunggu persetujuan Asman.", "success");
+      }
       
-      showToast("Permintaan barang berhasil dikirim! Menunggu persetujuan Asman.", "success");
       onSuccess();
       onClose();
-      // Reset form
-      setFormData({
-        category: "Permintaan ATK",
-        title: "",
-        division: "",
-        description: "",
-        purchaseLinks: [],
-      });
     } catch (error: any) {
       showToast("Gagal mengirim permintaan: " + error.message, "error");
     } finally {
@@ -89,7 +114,7 @@ export default function ItemRequestModal({ isOpen, onClose, onSuccess }: ItemReq
     <div className={styles.modalOverlay}>
       <div className={styles.modalContent} style={{ maxWidth: '600px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
-          <h2 style={{ fontSize: '1.25rem', fontWeight: 600 }}>Buat Permintaan Barang</h2>
+          <h2 style={{ fontSize: '1.25rem', fontWeight: 600 }}>{editItem ? "Edit Permintaan Barang" : "Buat Permintaan Barang"}</h2>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: 'var(--text-muted)' }}>&times;</button>
         </div>
 
@@ -225,7 +250,7 @@ export default function ItemRequestModal({ isOpen, onClose, onSuccess }: ItemReq
           <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
             <button type="button" onClick={onClose} style={{ flex: 1, padding: '0.875rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', background: 'white', fontWeight: 600, cursor: 'pointer' }}>Batal</button>
             <button type="submit" disabled={loading} style={{ flex: 1, padding: '0.875rem', borderRadius: 'var(--radius-md)', border: 'none', background: 'var(--primary)', color: 'white', fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer' }}>
-              {loading ? 'Mengirim...' : 'Kirim Permintaan'}
+              {loading ? 'Menyimpan...' : (editItem ? 'Simpan Perubahan' : 'Kirim Permintaan')}
             </button>
           </div>
         </form>

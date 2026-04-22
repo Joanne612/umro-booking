@@ -534,6 +534,12 @@ export const createItemRequest = async (data: Omit<ItemRequest, "status" | "crea
   return docRef.id;
 };
 
+export const updateItemRequest = async (id: string, data: Partial<Omit<ItemRequest, "id" | "status" | "createdAt" | "userId" | "userName">>) => {
+  if (!db) throw new Error("Firestore not initialized");
+  const docRef = doc(db, "item_requests", id);
+  await updateDoc(docRef, data);
+};
+
 export const getUserItemRequests = async (userId: string): Promise<ItemRequest[]> => {
   if (!db) return [];
   const q = query(

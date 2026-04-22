@@ -14,7 +14,8 @@ export default function ItemRequestsPage() {
   const [requests, setRequests] = useState<ItemRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  
+  const [itemToEdit, setItemToEdit] = useState<ItemRequest | null>(null);
+
   // Confirmation State
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<string | null>(null);
@@ -42,6 +43,11 @@ export default function ItemRequestsPage() {
     setIsConfirmOpen(true);
   };
 
+  const handleEditClick = (item: ItemRequest) => {
+    setItemToEdit(item);
+    setIsModalOpen(true);
+  };
+
   const handleDeleteConfirm = async () => {
     if (!itemToDelete) return;
     setDeleting(true);
@@ -63,26 +69,29 @@ export default function ItemRequestsPage() {
       case 'completed': return { bg: '#DCFCE7', text: '#166534', label: 'Selesai' };
       case 'approved': return { bg: '#DBEAFE', text: '#1E40AF', label: 'Disetujui Asman' };
       case 'rejected': return { bg: '#FEE2E2', text: '#991B1B', label: 'Ditolak' };
-      default: return { bg: '#FFEDD5', text: '#9A3412', label: 'Menunggu Asman' };
+      default: return { bg: '#FFEDD5', text: '#9A3412', label: 'Menunggu Keputusan Asman' };
     }
   };
 
   return (
     <div style={{ animation: 'fadeIn 0.5s ease' }}>
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'space-between', 
-        alignItems: 'center', 
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
         marginBottom: '2rem',
         flexWrap: 'wrap',
-        gap: '1rem' 
+        gap: '1rem'
       }}>
         <div>
           <h2 style={{ fontSize: '1.5rem', fontWeight: 700 }}>Permintaan Barang</h2>
           <p style={{ color: 'var(--text-muted)' }}>Kelola pengajuan ATK, IT Part, dan kebutuhan barang lainnya.</p>
         </div>
-        <button 
-          onClick={() => setIsModalOpen(true)}
+        <button
+          onClick={() => {
+            setItemToEdit(null);
+            setIsModalOpen(true);
+          }}
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -107,7 +116,7 @@ export default function ItemRequestsPage() {
           <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>📦</div>
           <h3 style={{ fontSize: '1.25rem', fontWeight: 600 }}>Belum ada permintaan</h3>
           <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem' }}>Anda belum memiliki riwayat permintaan barang.</p>
-          <button 
+          <button
             onClick={() => setIsModalOpen(true)}
             style={{
               padding: '0.6rem 1.25rem',
@@ -144,23 +153,40 @@ export default function ItemRequestsPage() {
                       {statusStyle.label}
                     </span>
                   </div>
-                  <div style={{ textAlign: 'right' }}>
+                  <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.5rem' }}>
                     {req.status === 'pending' && (
-                      <button 
-                        onClick={() => handleDeleteClick(req.id!)}
-                        style={{ 
-                          padding: '0.4rem 0.8rem', 
-                          borderRadius: 'var(--radius-sm)', 
-                          border: '1px solid #FEE2E2', 
-                          color: '#EF4444', 
-                          background: 'white',
-                          fontSize: '0.75rem',
-                          fontWeight: 600,
-                          cursor: 'pointer'
-                        }}
-                      >
-                        Hapus
-                      </button>
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <button
+                          onClick={() => handleEditClick(req)}
+                          style={{
+                            padding: '0.4rem 0.8rem',
+                            borderRadius: 'var(--radius-sm)',
+                            border: '1px solid var(--border)',
+                            color: 'var(--foreground)',
+                            background: 'white',
+                            fontSize: '0.75rem',
+                            fontWeight: 600,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleDeleteClick(req.id!)}
+                          style={{
+                            padding: '0.4rem 0.8rem',
+                            borderRadius: 'var(--radius-sm)',
+                            border: '1px solid #FEE2E2',
+                            color: '#EF4444',
+                            background: 'white',
+                            fontSize: '0.75rem',
+                            fontWeight: 600,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Hapus
+                        </button>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -180,9 +206,9 @@ export default function ItemRequestsPage() {
                   </div>
                 </div>
 
-                <div style={{ 
-                  backgroundColor: 'var(--background)', 
-                  padding: '1rem', 
+                <div style={{
+                  backgroundColor: 'var(--background)',
+                  padding: '1rem',
                   borderRadius: 'var(--radius-md)',
                   marginBottom: '1rem',
                   fontSize: '0.9rem',
@@ -200,13 +226,13 @@ export default function ItemRequestsPage() {
                       try {
                         domain = new URL(link).hostname.replace('www.', '');
                         domain = domain.charAt(0).toUpperCase() + domain.slice(1);
-                      } catch (e) {}
+                      } catch (e) { }
 
                       return (
-                        <a 
-                          key={i} 
-                          href={link} 
-                          target="_blank" 
+                        <a
+                          key={i}
+                          href={link}
+                          target="_blank"
                           rel="noopener noreferrer"
                           style={{
                             fontSize: '0.75rem',
@@ -231,7 +257,7 @@ export default function ItemRequestsPage() {
                     })}
                   </div>
                 )}
-                
+
                 {req.rejectReason && (
                   <div style={{ marginTop: '1rem', padding: '0.75rem', backgroundColor: '#FFF5F5', border: '1px solid #FED7D7', borderRadius: 'var(--radius-sm)', color: '#C53030', fontSize: '0.875rem' }}>
                     <strong>Alasan Penolakan:</strong> {req.rejectReason}
@@ -243,10 +269,14 @@ export default function ItemRequestsPage() {
         </div>
       )}
 
-      <ItemRequestModal 
-        isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)} 
+      <ItemRequestModal
+        isOpen={isModalOpen}
+        onClose={() => {
+          setIsModalOpen(false);
+          setItemToEdit(null);
+        }}
         onSuccess={fetchData}
+        editItem={itemToEdit}
       />
 
       {isConfirmOpen && (
