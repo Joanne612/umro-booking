@@ -1,6 +1,6 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import { getFirestore, enableMultiTabIndexedDbPersistence } from "firebase/firestore";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "mock-api-key",
@@ -22,4 +22,16 @@ try {
 const auth = app ? getAuth(app) : null;
 const db = app ? getFirestore(app) : null;
 
+// Enable persistence
+if (db && typeof window !== "undefined") {
+  enableMultiTabIndexedDbPersistence(db).catch((err) => {
+    if (err.code === "failed-precondition") {
+      console.warn("Persistence failed: Multiple tabs open.");
+    } else if (err.code === "unimplemented") {
+      console.warn("Persistence not supported by this browser.");
+    }
+  });
+}
+
 export { app, auth, db };
+

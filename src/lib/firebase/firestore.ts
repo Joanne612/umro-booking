@@ -1,4 +1,7 @@
-import { collection, addDoc, query, where, getDocs, Timestamp, onSnapshot, doc, getDoc, setDoc, updateDoc, deleteDoc, orderBy, limit } from "firebase/firestore";
+import { 
+  collection, addDoc, query, where, getDocs, Timestamp, onSnapshot, doc, getDoc, 
+  setDoc, updateDoc, deleteDoc, orderBy, limit, getCountFromServer 
+} from "firebase/firestore";
 import { db } from "./config";
 import { User as FirebaseUser } from "firebase/auth";
 
@@ -402,11 +405,16 @@ export const createVehicleBooking = async (data: Omit<VehicleBooking, "status" |
 
 export const getUserVehicleBookings = async (userId: string): Promise<VehicleBooking[]> => {
   if (!db) return [];
-  const q = query(collection(db, "vehicle_bookings"), where("userId", "==", userId));
-  const snap = await getDocs(q);
-  return snap.docs
-    .map(doc => ({ id: doc.id, ...doc.data() } as VehicleBooking))
-    .sort((a, b) => b.createdAt?.toMillis() - a.createdAt?.toMillis());
+  try {
+    const q = query(collection(db, "vehicle_bookings"), where("userId", "==", userId));
+    const snap = await getDocs(q);
+    return snap.docs
+      .map(doc => ({ id: doc.id, ...doc.data() } as VehicleBooking))
+      .sort((a, b) => b.createdAt?.toMillis() - a.createdAt?.toMillis());
+  } catch (error) {
+    console.error("Error fetching user vehicle bookings:", error);
+    return [];
+  }
 };
 
 export const subscribeToPendingVehicles = (callback: (data: VehicleBooking[]) => void) => {
@@ -602,4 +610,210 @@ export const deleteItemRequest = async (requestId: string) => {
   if (!db) return;
   const docRef = doc(db, "item_requests", requestId);
   await deleteDoc(docRef);
+};
+export const getPendingVehicleBookings = async (): Promise<VehicleBooking[]> => {
+  if (!db) return [];
+  const q = query(
+    collection(db, "vehicle_bookings"), 
+    where("status", "==", "pending")
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as VehicleBooking));
+};
+
+export const getWaitingAsmanVehicleBookings = async (): Promise<VehicleBooking[]> => {
+  if (!db) return [];
+  const q = query(
+    collection(db, "vehicle_bookings"), 
+    where("status", "==", "waiting_asman")
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as VehicleBooking));
+};
+
+// ================= DASHBOARD STATS =================
+
+export const getDashboardStats = async (userId: string, userRole: string) => {
+  if (!db) return null;
+
+  try {
+    const now = new Date();
+    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+
+    const isAdminOrAsman = ["admin", "asman", "staff_umum", "koordinator_driver"].includes(userRole);
+
+    // 1. Get bookings (for Room Usage Stats and Personal Stats)
+    const bookingsQ = query(
+      collection(db, "bookings"),
+      where("status", "==", "active")
+    );
+    const bookingsSnap = await getDocs(bookingsQ);
+    const allActiveBookings = bookingsSnap.docs.map(doc => doc.data() as BookingData);
+    
+    // Filter by date range in memory
+    const allBookings = allActiveBookings.filter(b => 
+      b.date >= firstDay && b.date <= lastDay
+    );
+    const userBookings = allBookings.filter(b => b.userId === userId);
+
+    // 2. Pending Tasks Counts (Using getCountFromServer for efficiency)
+    let pendingConsCount = 0;
+    const isExecutionRole = userRole === "staff_umum";
+    
+    // Consumption count
+    if (isAdminOrAsman) {
+      const statusToFetch = isExecutionRole ? "approved" : "pending";
+      const q = query(
+        collection(db, "bookings"),
+        where("status", "==", "active"),
+        where("consumption.requested", "==", true),
+        where("consumption.status", "==", statusToFetch)
+      );
+      const countSnap = await getCountFromServer(q);
+      pendingConsCount = countSnap.data().count;
+    } else {
+      const q = query(
+        collection(db, "bookings"),
+        where("userId", "==", userId),
+        where("status", "==", "active"),
+        where("consumption.requested", "==", true),
+        where("consumption.status", "==", "pending")
+      );
+      const countSnap = await getCountFromServer(q);
+      pendingConsCount = countSnap.data().count;
+    }
+
+    // Items count
+    let pendingItemsCount = 0;
+    const itemsRef = collection(db, "item_requests");
+    if (isAdminOrAsman) {
+      const statusToFetch = isExecutionRole ? "approved" : "pending";
+      const q = query(itemsRef, where("status", "==", statusToFetch));
+      const countSnap = await getCountFromServer(q);
+      pendingItemsCount = countSnap.data().count;
+    } else {
+      const q = query(itemsRef, where("userId", "==", userId), where("status", "==", "pending"));
+      const countSnap = await getCountFromServer(q);
+      pendingItemsCount = countSnap.data().count;
+    }
+
+    // Vehicles count
+    let pendingVehiclesCount = 0;
+    const vehiclesRef = collection(db, "vehicle_bookings");
+    if (isAdminOrAsman) {
+      let q;
+      if (userRole === "koordinator_driver") {
+        q = query(vehiclesRef, where("status", "==", "pending"));
+      } else if (userRole === "asman" || userRole === "admin") {
+        q = query(vehiclesRef, where("status", "==", "waiting_asman"));
+      }
+      
+      if (q) {
+        const countSnap = await getCountFromServer(q);
+        pendingVehiclesCount = countSnap.data().count;
+      }
+    } else {
+      const q = query(vehiclesRef, where("userId", "==", userId), where("status", "==", "pending"));
+      const countSnap = await getCountFromServer(q);
+      pendingVehiclesCount = countSnap.data().count;
+    }
+
+    // 3. Room Usage Stats
+    const roomsRef = collection(db, "rooms");
+    const roomsSnap = await getDocs(roomsRef);
+    const allRooms = roomsSnap.docs.map(doc => doc.data() as Room);
+    
+    const physicalRooms = allRooms.filter(r => r.type === "physical");
+    const roomUsage = physicalRooms.map(room => {
+      return {
+        roomId: room.id,
+        roomName: room.name,
+        count: allBookings.filter(b => b.roomId === room.id).length
+      };
+    }).sort((a, b) => b.count - a.count);
+
+    return {
+      totalBookingsMonth: allBookings.length,
+      userBookingsMonth: userBookings.length,
+      pendingTotal: pendingConsCount + pendingItemsCount + pendingVehiclesCount,
+      pendingCons: pendingConsCount,
+      pendingItems: pendingItemsCount,
+      pendingVehicles: pendingVehiclesCount,
+      roomUsage
+    };
+  } catch (error) {
+    console.error("Dashboard stats fetch failed:", error);
+    return null;
+  }
+};
+
+export const getMyRecentActivity = async (userId: string) => {
+  if (!db) return [];
+
+  try {
+    // Fetch latest bookings
+    const bookingsQ = query(
+      collection(db, "bookings"),
+      where("userId", "==", userId)
+    );
+    const bookingsSnap = await getDocs(bookingsQ);
+    const bookings = bookingsSnap.docs
+      .map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          title: data.title,
+          type: "Meeting",
+          status: data.status,
+          date: data.createdAt
+        };
+      })
+      .sort((a, b) => (b.date?.seconds || 0) - (a.date?.seconds || 0))
+      .slice(0, 3);
+
+    // Fetch latest item requests
+    const itemsQ = query(
+      collection(db, "item_requests"),
+      where("userId", "==", userId),
+      limit(3)
+    );
+    const itemsSnap = await getDocs(itemsQ);
+    const items = itemsSnap.docs.map(doc => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        title: data.title,
+        type: "Barang",
+        status: data.status,
+        date: data.createdAt
+      };
+    });
+
+    // Fetch latest vehicle bookings
+    const vehiclesQ = query(
+      collection(db, "vehicle_bookings"),
+      where("userId", "==", userId),
+      limit(3)
+    );
+    const vehiclesSnap = await getDocs(vehiclesQ);
+    const vehicles = vehiclesSnap.docs.map(doc => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        title: data.event,
+        type: "Kendaraan",
+        status: data.status,
+        date: data.createdAt
+      };
+    });
+
+    // Combine and sort by date
+    return [...bookings, ...items, ...vehicles]
+      .sort((a, b) => (b.date?.seconds || 0) - (a.date?.seconds || 0))
+      .slice(0, 5);
+  } catch (error) {
+    console.error("Error fetching recent activity:", error);
+    return [];
+  }
 };

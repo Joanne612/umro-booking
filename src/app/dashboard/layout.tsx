@@ -31,8 +31,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     <div className={styles.dashboardContainer}>
       {/* Mobile Overlay */}
       {sidebarOpen && (
-        <div 
-          className={styles.mobileOverlay} 
+        <div
+          className={styles.mobileOverlay}
           onClick={() => setSidebarOpen(false)}
         />
       )}
@@ -49,27 +49,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         <nav className={styles.navLinks}>
           <Link href="/dashboard" className={`${styles.navItem} ${pathname === "/dashboard" ? styles.active : ""}`}>
-            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>
+            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 002 2h2a2 2 0 002-2" /></svg>
             Dashboard
           </Link>
-          {userRole !== "view" && (
-            <Link href="/dashboard/my-bookings" className={`${styles.navItem} ${pathname === "/dashboard/my-bookings" ? styles.active : ""}`}>
-              <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-              Booking Saya
-            </Link>
-          )}
+
+          <Link href="/dashboard/booking" className={`${styles.navItem} ${pathname === "/dashboard/booking" ? styles.active : ""}`}>
+            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+            Layanan Booking
+          </Link>
 
           {userRole !== "view" && (
-            <Link href="/dashboard/vehicles" className={`${styles.navItem} ${pathname === "/dashboard/vehicles" ? styles.active : ""}`}>
-              <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0" /></svg>
-              Peminjaman Kendaraan
-            </Link>
-          )}
-          
-          {userRole !== "view" && (
-            <Link href="/dashboard/item-requests" className={`${styles.navItem} ${pathname === "/dashboard/item-requests" ? styles.active : ""}`}>
-              <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
-              Permintaan Barang
+            <Link href="/dashboard/my-bookings" className={`${styles.navItem} ${pathname === "/dashboard/my-bookings" ? styles.active : ""}`}>
+              <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>
+              Riwayat Booking
             </Link>
           )}
 
@@ -92,7 +84,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
             Profil Pengguna
           </Link>
-          
+
           {/* Admin link hidden conditionally for non-admin roles */}
           {userRole === "admin" && (
             <Link href="/dashboard/admin" className={`${styles.navItem} ${pathname.startsWith("/dashboard/admin") ? styles.active : ""}`}>
@@ -105,13 +97,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <div className={styles.userSection}>
           <div className={styles.avatar}>
             {user.photoURL ? (
-              <img 
-                src={user.photoURL} 
-                alt={user.displayName || "User"} 
+              <img
+                src={user.photoURL}
+                alt={user.displayName || "User"}
                 referrerPolicy="no-referrer"
               />
             ) : (
-              <div style={{width:'100%', height:'100%', background:'var(--primary)'}}></div>
+              <div style={{ width: '100%', height: '100%', background: 'var(--primary)' }}></div>
             )}
           </div>
           <div className={styles.userInfo}>
@@ -128,21 +120,22 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <main className={styles.mainContent}>
         <header className={styles.topbar}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            <button 
+            <button
               className={styles.menuToggle}
               onClick={() => setSidebarOpen(true)}
             >
               <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
             </button>
             <h1 className={styles.pageTitle}>
-              {pathname === '/dashboard' ? 'Overview Jadwal' : 
-               pathname === '/dashboard/my-bookings' ? 'Booking Saya' : 
-               pathname === '/dashboard/profile' ? 'Pengaturan Profil' : 
-               pathname === '/dashboard/approvals' ? 'Panel Persetujuan' :
-               pathname === '/dashboard/vehicles' ? 'Peminjaman Kendaraan' :
-               pathname === '/dashboard/item-requests' ? 'Permintaan Barang' :
-               pathname === '/dashboard/vehicles/approvals' ? 'Persetujuan Driver & Armada' :
-               'Admin Panel'}
+              {pathname === '/dashboard' ? 'Monitoring & Laporan' :
+                pathname === '/dashboard/booking' ? 'Layanan Terpadu UMRO' :
+                  pathname === '/dashboard/my-bookings' ? 'Riwayat Booking' :
+                    pathname === '/dashboard/profile' ? 'Pengaturan Profil' :
+                      pathname === '/dashboard/approvals' ? 'Panel Persetujuan' :
+                        pathname === '/dashboard/vehicles' ? 'Peminjaman Kendaraan' :
+                          pathname === '/dashboard/item-requests' ? 'Permintaan Barang' :
+                            pathname === '/dashboard/vehicles/approvals' ? 'Persetujuan Driver & Armada' :
+                              'Admin Panel'}
             </h1>
           </div>
         </header>
