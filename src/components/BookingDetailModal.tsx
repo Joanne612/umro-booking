@@ -4,6 +4,7 @@ import React from "react";
 import { BookingData, cancelBooking, updateBookingMeetingLink } from "@/lib/firebase/firestore";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/context/ToastContext";
+import { exportConsumptionToExcel, exportConsumptionToPDF } from "@/lib/utils/consumptionExporter";
 import styles from "../app/dashboard/dashboard.module.css";
 
 interface BookingDetailModalProps {
@@ -135,7 +136,7 @@ export default function BookingDetailModal({ booking, onClose, onRefresh }: Book
                   <div>
                     <div style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '0.25rem' }}>Tanggal</div>
                     <div style={{ fontWeight: 500 }}>
-                      📅 {booking.date}
+                    📅 {booking.date}{booking.endDate && booking.endDate !== booking.date ? ` - ${booking.endDate}` : ""}
                       {booking.groupId && (
                         <span style={{ 
                           marginLeft: '0.5rem', 
@@ -298,6 +299,42 @@ export default function BookingDetailModal({ booking, onClose, onRefresh }: Book
                     </div>
                   )}
                 </div>
+
+                {/* --- SEKSI EKSPOR / LAPORAN (Always Visible) --- */}
+                <div style={{ 
+                  padding: '0.2rem 1rem', 
+                  display: 'flex', 
+                  justifyContent: 'space-between', 
+                  alignItems: 'center',
+                  background: 'rgba(0,0,0,0.02)',
+                  borderRadius: 'var(--radius-md)',
+                  border: '1px dashed var(--border)'
+                }}>
+                  <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#94A3B8', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+                     opsi laporan:
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <button 
+                      onClick={() => exportConsumptionToPDF([booking])}
+                      style={{ 
+                        padding: '0.4rem 0.8rem', 
+                        background: 'transparent', 
+                        border: '1px solid #EF4444', 
+                        color: '#DC2626', 
+                        borderRadius: 'var(--radius-sm)', 
+                        fontSize: '0.7rem', 
+                        fontWeight: 700, 
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.3rem'
+                      }}
+                    >
+                      📄 PDF
+                    </button>
+                  </div>
+                </div>
+
                 {/* --- SEKSI KONSUMSI --- */}
                 {booking.consumption?.requested && (
                   <div style={{
@@ -325,7 +362,7 @@ export default function BookingDetailModal({ booking, onClose, onRefresh }: Book
                       </span>
                     </div>
 
-                    <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '0.5rem' }}>
+                    <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
                       {booking.consumption.morningSnack && (
                         <div style={{ fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.25rem', padding: '0.2rem 0.5rem', background: 'white', border: '1px solid #E2E8F0', borderRadius: '4px' }}>
                           🍰 Snack Pagi
@@ -344,26 +381,26 @@ export default function BookingDetailModal({ booking, onClose, onRefresh }: Book
                     </div>
 
                     {booking.consumption.notes && (
-                      <div style={{ fontSize: '0.8rem', color: '#64748B', fontStyle: 'italic', background: 'white', padding: '0.4rem', borderRadius: '4px', border: '1px dashed #CBD5E1' }}>
+                      <div style={{ fontSize: '0.8rem', color: '#64748B', fontStyle: 'italic', background: 'white', padding: '0.5rem', borderRadius: '6px', border: '1px dashed #CBD5E1', marginBottom: '1rem' }}>
                         " {booking.consumption.notes} "
                       </div>
                     )}
 
-                    {booking.consumption.status === 'approved' && (
+                    {booking.consumption?.status === 'approved' && (
                       <div style={{ marginTop: '0.75rem', fontSize: '0.75rem', color: '#166534', fontWeight: 500 }}>
-                        Disetujui oleh: {booking.consumption.approvedByName || 'Asman Umum'} (Menunggu Kelola Staff)
+                        Disetujui oleh: {booking.consumption?.approvedByName || 'Asman Umum'} (Menunggu Kelola Staff)
                       </div>
                     )}
 
-                    {booking.consumption.status === 'completed' && (
+                    {booking.consumption?.status === 'completed' && (
                       <div style={{ marginTop: '0.75rem', fontSize: '0.75rem', color: '#059669', fontWeight: 600 }}>
-                        ✓ Berhasil Dikelola oleh: {booking.consumption.processedByName || 'Staff Umum'}
+                        ✓ Berhasil Dikelola oleh: {booking.consumption?.processedByName || 'Staff Umum'}
                       </div>
                     )}
 
-                    {booking.consumption.status === 'rejected' && booking.consumption.rejectReason && (
+                    {booking.consumption?.status === 'rejected' && booking.consumption?.rejectReason && (
                       <div style={{ marginTop: '0.75rem', fontSize: '0.75rem', color: '#991B1B', fontWeight: 600 }}>
-                        Alasan Penolakan: {booking.consumption.rejectReason}
+                        Alasan Penolakan: {booking.consumption?.rejectReason}
                       </div>
                     )}
                   </div>

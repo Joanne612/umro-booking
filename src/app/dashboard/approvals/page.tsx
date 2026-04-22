@@ -18,6 +18,7 @@ import {
   ItemRequest
 } from "@/lib/firebase/firestore";
 import VehicleApprovalCard from "@/components/VehicleApprovalCard";
+import { exportConsumptionToPDF } from "@/lib/utils/consumptionExporter";
 import styles from "../dashboard.module.css";
 
 export default function ApprovalsPage() {
@@ -369,21 +370,23 @@ export default function ApprovalsPage() {
             </button>
           </div>
 
-          <div style={{ position: 'relative', flex: '1', maxWidth: '350px' }}>
-            <span style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', opacity: 0.5 }}>🔍</span>
-            <input
-              type="text"
-              placeholder="Cari kegiatan, pemohon, atau ruangan..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '0.6rem 1rem 0.6rem 2.25rem',
-                borderRadius: 'var(--radius-md)',
-                border: '1px solid var(--border)',
-                fontSize: '0.875rem'
-              }}
-            />
+          <div style={{ display: 'flex', gap: '0.75rem', flex: '1', maxWidth: '550px', alignItems: 'center' }}>
+            <div style={{ position: 'relative', flex: '1' }}>
+              <span style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', opacity: 0.5 }}>🔍</span>
+              <input
+                type="text"
+                placeholder="Cari kegiatan, pemohon, atau ruangan..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '0.6rem 1rem 0.6rem 2.25rem',
+                  borderRadius: 'var(--radius-md)',
+                  border: '1px solid var(--border)',
+                  fontSize: '0.875rem'
+                }}
+              />
+            </div>
           </div>
         </div>
       </div>
@@ -437,9 +440,31 @@ export default function ApprovalsPage() {
                 <div style={{ padding: '1rem 1.25rem', background: '#F8FAFC', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end', gap: '1rem', alignItems: 'center' }}>
                   {viewMode === "pending" ? (
                     <>
-                      {userRole !== "staff_umum" && (
-                        <button onClick={() => setRejectingConsumption(booking)} className="btn-secondary" style={{ padding: '0.5rem 1.25rem', border: '1px solid #EF4444', color: '#EF4444' }}>Tolak</button>
-                      )}
+                        {(userRole === 'admin' || userRole === 'asman' || userRole === 'staff_umum') && (
+                          <button 
+                            onClick={() => exportConsumptionToPDF([booking])}
+                            title="Cetak PDF Detail Agenda"
+                            style={{ 
+                              padding: '0.5rem 0.75rem', 
+                              border: '1px solid #EF4444', 
+                              color: '#EF4444', 
+                              background: 'white',
+                              borderRadius: 'var(--radius-md)',
+                              fontSize: '0.8125rem',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.3rem',
+                              marginRight: 'auto'
+                            }}
+                          >
+                            📄 PDF
+                          </button>
+                        )}
+                        {userRole !== "staff_umum" && (
+                          <button onClick={() => setRejectingConsumption(booking)} className="btn-secondary" style={{ padding: '0.5rem 1.25rem', border: '1px solid #EF4444', color: '#EF4444' }}>Tolak</button>
+                        )}
                       <button
                         onClick={() => handleApproveConsumption(booking.id!)}
                         className="btn-primary"
@@ -449,7 +474,29 @@ export default function ApprovalsPage() {
                       </button>
                     </>
                   ) : (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%' }}>
+                      {(userRole === 'admin' || userRole === 'asman' || userRole === 'staff_umum') && (
+                        <button 
+                          onClick={() => exportConsumptionToPDF([booking])}
+                          title="Cetak PDF Detail Agenda"
+                          style={{ 
+                            padding: '0.5rem 0.75rem', 
+                            border: '1px solid #EF4444', 
+                            color: '#EF4444', 
+                            background: 'white',
+                            borderRadius: 'var(--radius-md)',
+                            fontSize: '0.8125rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.3rem',
+                            marginRight: 'auto'
+                          }}
+                        >
+                          📄 PDF
+                        </button>
+                      )}
                       <span style={{
                         padding: '0.4rem 0.8rem',
                         borderRadius: '20px',
@@ -617,7 +664,7 @@ export default function ApprovalsPage() {
                 userRole={userRole}
                 processingId={processingId}
                 onApprove={handleApproveVehicle}
-                onReject={(b) => setRejectingVehicle(b)}
+                onReject={(b: VehicleBooking) => setRejectingVehicle(b)}
               />
             ))}
           </div>
