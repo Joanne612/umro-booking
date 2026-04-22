@@ -117,7 +117,8 @@ export default function BookingModal({
           formData.date,
           formData.startTime,
           formData.endTime,
-          editData?.id
+          editData?.id,
+          editData?.groupId
         );
         setConflict(result);
       } catch (err) {
@@ -164,8 +165,12 @@ export default function BookingModal({
           const groupBookings = await getBookingsByGroupId(groupId);
           const newDates = dates; // From getDatesInRange(formData.date, formData.endDate)
           
-          // Identify existing dates in group
-          const existingDateMap = new Map(groupBookings.map(b => [b.date, b]));
+          // Identify existing dates in group (including original single booking if converting)
+          let effectiveGroupBookings = groupBookings;
+          if (!editData.groupId && editData.id) {
+            effectiveGroupBookings = [...groupBookings, editData as FullBookingData];
+          }
+          const existingDateMap = new Map(effectiveGroupBookings.map(b => [b.date, b]));
 
           // A. Update or Create for the new range
           for (const date of newDates) {
@@ -182,18 +187,19 @@ export default function BookingModal({
               userId: user.uid,
               userName: user.displayName || user.email || "Unknown",
               createdAt: existingInGroup?.createdAt || new Date(),
-              groupId: groupId,
-              endDate: formData.endDate, // Store the range info in every doc
-              ...(formData.consumption.requested ? {
+              ...(groupId && { groupId }),
+              ...(isMultiDay && { endDate: formData.endDate }), // Store the range info in every doc
+              // Always sync consumption if it existed before or is currently requested
+              ...((existingInGroup?.consumption || formData.consumption.requested) ? {
                 consumption: {
-                  requested: true,
+                  requested: formData.consumption.requested,
                   morningSnack: formData.consumption.morningSnack,
                   lunch: formData.consumption.lunch,
                   afternoonSnack: formData.consumption.afternoonSnack,
                   notes: formData.consumption.notes,
                   status: (existingInGroup?.consumption?.status || "pending") as any
                 }
-              } : {})
+              } : {}),
             };
 
             if (existingInGroup?.id) {
@@ -226,7 +232,8 @@ export default function BookingModal({
             userId: user.uid,
             userName: user.displayName || user.email || "Unknown",
             createdAt: editData?.createdAt || new Date(),
-            ...(formData.consumption.requested ? {
+            // Always sync consumption if it existed before or is currently requested
+            ...((editData?.consumption || formData.consumption.requested) ? {
               consumption: {
                 ...formData.consumption,
                 status: (editData?.consumption?.status || "pending") as "pending" | "approved" | "rejected" | "completed"
@@ -252,7 +259,8 @@ export default function BookingModal({
             userId: user.uid,
             userName: user.displayName || user.email || "Unknown",
             createdAt: new Date(),
-            groupId: groupId,
+            ...(groupId && { groupId }),
+            ...(isMultiDay && { endDate: formData.endDate }),
             ...(formData.consumption.requested ? {
               consumption: {
                 ...formData.consumption,
