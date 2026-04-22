@@ -68,6 +68,26 @@ export interface VehicleBooking {
   vehicleNotes?: string;
 }
 
+export interface ItemRequest {
+  id?: string;
+  userId: string;
+  userName: string;
+  division: string;
+  category: "Permintaan ATK" | "Permintaan Terkait Part Komputer/Laptop" | "Lainnya";
+  title: string;
+  description: string;
+  purchaseLinks: string[];
+  status: "pending" | "approved" | "rejected" | "completed";
+  createdAt: any;
+  asmanApprovedBy?: string;
+  asmanApprovedByName?: string;
+  asmanApprovalDate?: any;
+  staffProcessedBy?: string;
+  staffProcessedByName?: string;
+  staffProcessedDate?: any;
+  rejectReason?: string;
+}
+
 export interface UserRole {
   uid: string;
   email: string;
@@ -499,4 +519,81 @@ export const cancelVehicleBooking = async (bookingId: string) => {
   if (!db) return;
   const docRef = doc(db, "vehicle_bookings", bookingId);
   await deleteDoc(docRef); // Or set status to "cancelled"
+};
+
+// ================= ITEM REQUESTS =================
+
+export const createItemRequest = async (data: Omit<ItemRequest, "status" | "createdAt">) => {
+  if (!db) throw new Error("Firestore not initialized");
+  const requestsRef = collection(db, "item_requests");
+  const docRef = await addDoc(requestsRef, {
+    ...data,
+    status: "pending",
+    createdAt: Timestamp.now()
+  });
+  return docRef.id;
+};
+
+export const getUserItemRequests = async (userId: string): Promise<ItemRequest[]> => {
+  if (!db) return [];
+  const q = query(
+    collection(db, "item_requests"), 
+    where("userId", "==", userId)
+  );
+  const snap = await getDocs(q);
+  const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as ItemRequest));
+  // Sorting manual di sisi klien agar tidak perlu indeks komposit
+  return data.sort((a, b) => {
+    const timeA = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
+    const timeB = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
+    return timeB - timeA;
+  });
+};
+
+export const getItemRequestsByStatus = async (statuses: string[]): Promise<ItemRequest[]> => {
+  if (!db) return [];
+  const q = query(
+    collection(db, "item_requests"), 
+    where("status", "in", statuses)
+  );
+  const snap = await getDocs(q);
+  const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as ItemRequest));
+  // Sorting manual di sisi klien
+  return data.sort((a, b) => {
+    const timeA = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
+    const timeB = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
+    return timeB - timeA;
+  });
+};
+
+export const updateItemRequestStatus = async (
+  requestId: string, 
+  status: "approved" | "rejected" | "completed", 
+  officerId: string, 
+  officerName: string,
+  reason?: string
+) => {
+  if (!db) return;
+  const requestRef = doc(db, "item_requests", requestId);
+  
+  const updates: any = { status };
+  
+  if (status === "approved" || status === "rejected") {
+    updates.asmanApprovedBy = officerId;
+    updates.asmanApprovedByName = officerName;
+    updates.asmanApprovalDate = Timestamp.now();
+    if (reason) updates.rejectReason = reason;
+  } else if (status === "completed") {
+    updates.staffProcessedBy = officerId;
+    updates.staffProcessedByName = officerName;
+    updates.staffProcessedDate = Timestamp.now();
+  }
+  
+  await updateDoc(requestRef, updates);
+};
+
+export const deleteItemRequest = async (requestId: string) => {
+  if (!db) return;
+  const docRef = doc(db, "item_requests", requestId);
+  await deleteDoc(docRef);
 };

@@ -11,8 +11,11 @@ import {
   subscribeToWaitingAsmanVehicles,
   subscribeToVehicleHistory,
   updateVehicleBookingStatus,
+  getItemRequestsByStatus,
+  updateItemRequestStatus,
   BookingData,
-  VehicleBooking
+  VehicleBooking,
+  ItemRequest
 } from "@/lib/firebase/firestore";
 import VehicleApprovalCard from "@/components/VehicleApprovalCard";
 import styles from "../dashboard.module.css";
@@ -27,12 +30,14 @@ export default function ApprovalsPage() {
 
   const [consumptionBookings, setConsumptionBookings] = useState<BookingData[]>([]);
   const [vehicleBookings, setVehicleBookings] = useState<VehicleBooking[]>([]);
+  const [itemRequests, setItemRequests] = useState<ItemRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState<string | null>(null);
 
   // Rejection State
   const [rejectingConsumption, setRejectingConsumption] = useState<BookingData | null>(null);
   const [rejectingVehicle, setRejectingVehicle] = useState<VehicleBooking | null>(null);
+  const [rejectingItem, setRejectingItem] = useState<ItemRequest | null>(null);
   const [rejectReason, setRejectReason] = useState("");
 
   const fetchData = async () => {
@@ -42,24 +47,30 @@ export default function ApprovalsPage() {
         if (userRole === "staff_umum") {
           const approvedCons = await getApprovedConsumptionBookings();
           setConsumptionBookings(approvedCons);
+          const approvedItems = await getItemRequestsByStatus(["approved"]);
+          setItemRequests(approvedItems);
         } else {
           const consData = await getPendingConsumptionBookings();
           setConsumptionBookings(consData);
+          const pendingItems = await getItemRequestsByStatus(["pending"]);
+          setItemRequests(pendingItems);
         }
       } else {
         const consData = await getConsumptionHistory();
         setConsumptionBookings(consData);
+        const historyItems = await getItemRequestsByStatus(["completed", "rejected"]);
+        setItemRequests(historyItems);
       }
     } catch (error: any) {
-      showToast("Gagal memuat data konsumsi: " + error.message, "error");
+      showToast("Gagal memuat data: " + error.message, "error");
     } finally {
-      if (activeTab === "consumption") setLoading(false);
+      setLoading(false);
     }
   };
 
   useEffect(() => {
     fetchData();
-  }, [viewMode]);
+  }, [viewMode, userRole]);
 
   // Real-time Vehicle Subscription
   useEffect(() => {
@@ -100,6 +111,15 @@ export default function ApprovalsPage() {
       b.validatedByName?.toLowerCase().includes(searchQuery.toLowerCase())
     );
   }, [vehicleBookings, searchQuery]);
+
+  const filteredItems = useMemo(() => {
+    return itemRequests.filter(req =>
+      req.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      req.userName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      req.division?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      req.category?.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }, [itemRequests, searchQuery]);
 
   const handleApproveConsumption = async (bookingId: string) => {
     if (!user) return;
@@ -192,6 +212,49 @@ export default function ApprovalsPage() {
     }
   };
 
+  const handleApproveItem = async (requestId: string) => {
+    if (!user) return;
+    setProcessingId(requestId);
+    try {
+      if (userRole === "staff_umum") {
+        await updateItemRequestStatus(requestId, "completed", user.uid, user.displayName || "Staff Umum");
+        showToast("Permintaan barang berhasil ditandai selesai.", "success");
+      } else {
+        await updateItemRequestStatus(requestId, "approved", user.uid, user.displayName || user.email || "Asman Umum");
+        showToast("Permintaan barang disetujui, diteruskan ke Staff Umum.", "success");
+      }
+      fetchData();
+    } catch (error: any) {
+      showToast("Gagal memproses: " + error.message, "error");
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const handleRejectItem = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user || !rejectingItem?.id || !rejectReason.trim()) return;
+
+    setProcessingId(rejectingItem.id);
+    try {
+      await updateItemRequestStatus(
+        rejectingItem.id,
+        "rejected",
+        user.uid,
+        user.displayName || user.email || "Asman Umum",
+        rejectReason
+      );
+      showToast("Permintaan barang telah ditolak.", "success");
+      setRejectingItem(null);
+      setRejectReason("");
+      fetchData();
+    } catch (error: any) {
+      showToast("Gagal memproses: " + error.message, "error");
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
   if (userRole !== "admin" && userRole !== "asman" && userRole !== "staff_umum") {
     return (
       <div style={{ textAlign: "center", padding: "5rem 2rem" }}>
@@ -234,24 +297,39 @@ export default function ApprovalsPage() {
             📦 Konsumsi ({consumptionBookings.length})
           </button>
 
-          {(userRole === "asman" || userRole === "admin" || userRole === "staff_umum") && (
-            <button
-              onClick={() => setActiveTab("vehicle")}
-              style={{
-                padding: '0.75rem 1.5rem',
-                border: 'none',
-                background: 'none',
-                fontSize: '0.9375rem',
-                fontWeight: activeTab === "vehicle" ? 700 : 500,
-                color: activeTab === "vehicle" ? 'var(--primary)' : 'var(--text-muted)',
-                borderBottom: activeTab === "vehicle" ? '3px solid var(--primary)' : '3px solid transparent',
-                cursor: 'pointer',
-                transition: 'all 0.2s'
-              }}
-            >
-              🚗 Kendaraan ({vehicleBookings.length})
-            </button>
-          )}
+          <button
+            onClick={() => { setActiveTab("vehicle"); setViewMode("pending"); }}
+            style={{
+              padding: '0.75rem 1.5rem',
+              border: 'none',
+              background: 'none',
+              fontSize: '0.9375rem',
+              fontWeight: activeTab === "vehicle" ? 700 : 500,
+              color: activeTab === "vehicle" ? 'var(--primary)' : 'var(--text-muted)',
+              borderBottom: activeTab === "vehicle" ? '3px solid var(--primary)' : '3px solid transparent',
+              cursor: 'pointer',
+              transition: 'all 0.2s'
+            }}
+          >
+            🚗 Kendaraan ({vehicleBookings.length})
+          </button>
+
+          <button
+            onClick={() => { setActiveTab("item" as any); setViewMode("pending"); }}
+            style={{
+              padding: '0.75rem 1.5rem',
+              border: 'none',
+              background: 'none',
+              fontSize: '0.9375rem',
+              fontWeight: activeTab === ("item" as any) ? 700 : 500,
+              color: activeTab === ("item" as any) ? 'var(--primary)' : 'var(--text-muted)',
+              borderBottom: activeTab === ("item" as any) ? '3px solid var(--primary)' : '3px solid transparent',
+              cursor: 'pointer',
+              transition: 'all 0.2s'
+            }}
+          >
+            🛒 Barang ({itemRequests.length})
+          </button>
         </div>
 
         {/* CONTROLS (MODE & SEARCH) */}
@@ -395,8 +473,130 @@ export default function ApprovalsPage() {
             ))}
           </div>
         )
+      ) : activeTab === ("item" as any) ? (
+        /* ================= BARANG ================= */
+        filteredItems.length === 0 ? (
+          <div style={{ padding: '4rem 2rem', textAlign: 'center', background: 'white', borderRadius: 'var(--radius-lg)', border: '1px dashed var(--border)' }}>
+            <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>{searchQuery ? '🔎' : (viewMode === 'pending' ? '📦' : '📂')}</div>
+            <h3 style={{ fontSize: '1.25rem', fontWeight: 600 }}>
+              {searchQuery ? 'Hasil tidak ditemukan' : (viewMode === 'pending' ? 'Semua Beres!' : 'Riwayat Kosong')}
+            </h3>
+            <p style={{ color: 'var(--text-muted)' }}>
+              {searchQuery ? `Tidak ada hasil untuk "${searchQuery}"` : (viewMode === 'pending' ? 'Tidak ada permintaan barang yang perlu diproses.' : 'Belum ada riwayat permintaan barang.')}
+            </p>
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gap: '1.5rem' }}>
+            {filteredItems.map(req => {
+              const getDomain = (url: string) => {
+                try {
+                  const domain = new URL(url).hostname.replace('www.', '');
+                  return domain.charAt(0).toUpperCase() + domain.slice(1);
+                } catch {
+                  return "Tautan";
+                }
+              };
+
+              return (
+                <div key={req.id} style={{ background: 'white', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)', overflow: 'hidden', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+                  <div style={{ padding: '1.25rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: viewMode === 'history' ? '#F8FAFC' : 'rgba(0,162,233,0.02)' }}>
+                    <div>
+                      <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--primary)', textTransform: 'uppercase' }}>{req.category}</span>
+                      <h3 style={{ fontSize: '1.125rem', fontWeight: 700 }}>{req.title}</h3>
+                    </div>
+                  </div>
+                  
+                  <div style={{ padding: '1.25rem' }}>
+                    <div style={{ marginBottom: '1.25rem', padding: '0.75rem', backgroundColor: 'rgba(0,162,233,0.05)', borderRadius: 'var(--radius-md)', border: '1px solid var(--primary-light)' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(120px, auto) 1fr', gap: '0.5rem', marginBottom: '0.4rem' }}>
+                        <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 600 }}>Nama Pemohon</span>
+                        <span style={{ fontSize: '0.85rem', fontWeight: 700 }}>: &nbsp;{req.userName}</span>
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(120px, auto) 1fr', gap: '0.5rem', marginBottom: '0.4rem' }}>
+                        <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 600 }}>Fungsi/Bidang</span>
+                        <span style={{ fontSize: '0.85rem', fontWeight: 700 }}>: &nbsp;{req.division}</span>
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(120px, auto) 1fr', gap: '0.5rem' }}>
+                        <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 600 }}>Tanggal Pengajuan</span>
+                        <span style={{ fontSize: '0.85rem', fontWeight: 700 }}>: &nbsp;{new Date(req.createdAt?.toDate()).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+                      </div>
+                    </div>
+                    
+                    <div style={{ backgroundColor: '#F8FAFC', padding: '1rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', fontSize: '0.9rem', lineHeight: '1.6', whiteSpace: 'pre-wrap', marginBottom: '1rem' }}>
+                      {req.description}
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+                      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                        {req.purchaseLinks && req.purchaseLinks.map((link, i) => (
+                          <a 
+                            key={i} 
+                            href={link} 
+                            target="_blank" 
+                            rel="noopener noreferrer" 
+                            style={{ 
+                              fontSize: '0.75rem', 
+                              color: 'var(--primary)', 
+                              textDecoration: 'none', 
+                              background: 'white', 
+                              border: '1px solid var(--primary-light)',
+                              padding: '0.3rem 0.75rem', 
+                              borderRadius: '99px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.3rem',
+                              fontWeight: 600,
+                              transition: 'all 0.2s'
+                            }}
+                            onMouseOver={e => e.currentTarget.style.background = 'var(--primary-light)'}
+                            onMouseOut={e => e.currentTarget.style.background = 'white'}
+                          >
+                            🔗 {getDomain(link)}
+                          </a>
+                        ))}
+                        {(!req.purchaseLinks || req.purchaseLinks.length === 0) && <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Tidak ada tautan referensi.</span>}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ padding: '1rem 1.25rem', background: '#F8FAFC', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end', gap: '1rem', alignItems: 'center' }}>
+                    {viewMode === "pending" ? (
+                      <>
+                        {userRole !== "staff_umum" && (
+                          <button onClick={() => setRejectingItem(req)} className="btn-secondary" style={{ padding: '0.5rem 1.25rem', border: '1px solid #EF4444', color: '#EF4444' }}>Tolak</button>
+                        )}
+                        <button
+                          onClick={() => handleApproveItem(req.id!)}
+                          className="btn-primary"
+                          style={{ padding: '0.5rem 1.5rem', background: userRole === 'staff_umum' ? '#059669' : '#10B981' }}
+                        >
+                          {userRole === 'staff_umum' ? '✓ Mark Selesai' : '✓ Setujui'}
+                        </button>
+                      </>
+                    ) : (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <span style={{
+                          padding: '0.4rem 0.8rem',
+                          borderRadius: '20px',
+                          fontSize: '0.75rem',
+                          fontWeight: 700,
+                          textTransform: 'uppercase',
+                          background: req.status === 'completed' ? '#D1FAE5' : (req.status === 'approved' ? '#DCFCE7' : '#FEE2E2'),
+                          color: req.status === 'completed' ? '#059669' : (req.status === 'approved' ? '#166534' : '#991B1B')
+                        }}>
+                          {req.status === 'completed' ? 'Selesai ✓' : (req.status === 'approved' ? 'Disetujui' : 'Ditolak ✗')}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )
       ) : (
         /* ================= KENDARAAN ================= */
+        // ... (existing vehicle logic)
         filteredVehicles.length === 0 ? (
           <div style={{ padding: '4rem 2rem', textAlign: 'center', background: 'white', borderRadius: 'var(--radius-lg)', border: '1px dashed var(--border)' }}>
             <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>{searchQuery ? '🔎' : (viewMode === 'pending' ? '🚗' : '📂')}</div>
@@ -451,6 +651,22 @@ export default function ApprovalsPage() {
               <div style={{ display: 'flex', gap: '1rem' }}>
                 <button type="button" onClick={() => { setRejectingVehicle(null); setRejectReason(""); }} style={{ flex: 1, padding: '0.75rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', background: 'white', fontWeight: 600, cursor: 'pointer' }}>Batal</button>
                 <button type="submit" disabled={processingId === rejectingVehicle.id} style={{ flex: 1, padding: '0.75rem', borderRadius: 'var(--radius-md)', border: 'none', background: '#EF4444', color: 'white', fontWeight: 600, cursor: 'pointer' }}>{processingId === rejectingVehicle.id ? 'Memproses...' : 'Ya, Tolak'}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {rejectingItem && (
+        <div className={styles.modalOverlay} style={{ zIndex: 3000 }}>
+          <div className={styles.modalContent} style={{ maxWidth: '400px' }}>
+            <h3 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '1rem' }}>Tolak Permintaan Barang</h3>
+            <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginBottom: '1.5rem' }}>Berikan alasan mengapa permintaan barang <b>"{rejectingItem.title}"</b> ditolak.</p>
+            <form onSubmit={handleRejectItem}>
+              <textarea required autoFocus value={rejectReason} onChange={e => setRejectReason(e.target.value)} placeholder="Alasan penolakan..." style={{ width: '100%', padding: '0.75rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', minHeight: '100px', fontFamily: 'inherit', marginBottom: '1.5rem' }} />
+              <div style={{ display: 'flex', gap: '1rem' }}>
+                <button type="button" onClick={() => { setRejectingItem(null); setRejectReason(""); }} style={{ flex: 1, padding: '0.75rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', background: 'white', fontWeight: 600, cursor: 'pointer' }}>Batal</button>
+                <button type="submit" disabled={processingId === rejectingItem.id} style={{ flex: 1, padding: '0.75rem', borderRadius: 'var(--radius-md)', border: 'none', background: '#EF4444', color: 'white', fontWeight: 600, cursor: 'pointer' }}>{processingId === rejectingItem.id ? 'Memproses...' : 'Ya, Tolak'}</button>
               </div>
             </form>
           </div>

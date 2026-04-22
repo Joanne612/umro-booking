@@ -65,6 +65,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               Peminjaman Kendaraan
             </Link>
           )}
+          
+          {userRole !== "view" && (
+            <Link href="/dashboard/item-requests" className={`${styles.navItem} ${pathname === "/dashboard/item-requests" ? styles.active : ""}`}>
+              <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
+              Permintaan Barang
+            </Link>
+          )}
 
           {/* Approval Link for Asman, Admin, and Staff Umum */}
           {(userRole === "asman" || userRole === "admin" || userRole === "staff_umum") && (
@@ -133,6 +140,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                pathname === '/dashboard/profile' ? 'Pengaturan Profil' : 
                pathname === '/dashboard/approvals' ? 'Panel Persetujuan' :
                pathname === '/dashboard/vehicles' ? 'Peminjaman Kendaraan' :
+               pathname === '/dashboard/item-requests' ? 'Permintaan Barang' :
                pathname === '/dashboard/vehicles/approvals' ? 'Persetujuan Driver & Armada' :
                'Admin Panel'}
             </h1>
