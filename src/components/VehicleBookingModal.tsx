@@ -206,7 +206,7 @@ export default function VehicleBookingModal({ isOpen, onClose, onSuccess, editBo
                 required 
                 placeholder="Contoh: 0812..." 
                 value={formData.userPhone} 
-                onChange={e => setFormData({...formData, userPhone: e.target.value})} 
+                onChange={e => setFormData({...formData, userPhone: e.target.value.replace(/[^0-9]/g, '')})} 
                 className={styles.textInput} 
               />
             </div>
