@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { createVehicleBooking, VehicleBooking } from "@/lib/firebase/firestore";
+import { useState, useEffect } from "react";
+import { createVehicleBooking, updateVehicleBooking, VehicleBooking } from "@/lib/firebase/firestore";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/context/ToastContext";
 import styles from "../app/dashboard/dashboard.module.css";
@@ -10,9 +10,10 @@ interface VehicleBookingModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  editBooking?: VehicleBooking | null;
 }
 
-export default function VehicleBookingModal({ isOpen, onClose, onSuccess }: VehicleBookingModalProps) {
+export default function VehicleBookingModal({ isOpen, onClose, onSuccess, editBooking }: VehicleBookingModalProps) {
   const { user } = useAuth();
   const { showToast } = useToast();
   const [loading, setLoading] = useState(false);
@@ -20,7 +21,7 @@ export default function VehicleBookingModal({ isOpen, onClose, onSuccess }: Vehi
   const [formData, setFormData] = useState({
     tripType: "pp" as "pp" | "one_way",
     date: new Date().toISOString().split('T')[0],
-    duration: 1,
+    endDate: new Date().toISOString().split('T')[0],
     userName: user?.displayName || "",
     userPhone: "",
     passengers: 1,
@@ -29,6 +30,36 @@ export default function VehicleBookingModal({ isOpen, onClose, onSuccess }: Vehi
     pickupLocation: "",
     destination: ""
   });
+
+  useEffect(() => {
+    if (isOpen && editBooking) {
+      setFormData({
+        tripType: editBooking.tripType,
+        date: editBooking.date,
+        endDate: editBooking.endDate || editBooking.date,
+        userName: editBooking.userName,
+        userPhone: editBooking.userPhone,
+        passengers: editBooking.passengers,
+        event: editBooking.event,
+        pickupTime: editBooking.pickupTime,
+        pickupLocation: editBooking.pickupLocation,
+        destination: editBooking.destination
+      });
+    } else if (isOpen && !editBooking) {
+      setFormData({
+        tripType: "pp",
+        date: new Date().toISOString().split('T')[0],
+        endDate: new Date().toISOString().split('T')[0],
+        userName: user?.displayName || "",
+        userPhone: "",
+        passengers: 1,
+        event: "",
+        pickupTime: "08:00",
+        pickupLocation: "",
+        destination: ""
+      });
+    }
+  }, [isOpen, editBooking, user]);
 
   if (!isOpen) return null;
 
@@ -42,21 +73,44 @@ export default function VehicleBookingModal({ isOpen, onClose, onSuccess }: Vehi
 
     setLoading(true);
     try {
-      await createVehicleBooking({
-        userId: user.uid,
-        userName: formData.userName,
-        userPhone: formData.userPhone,
-        tripType: formData.tripType,
-        date: formData.date,
-        duration: Number(formData.duration),
-        passengers: Number(formData.passengers),
-        event: formData.event,
-        pickupTime: formData.pickupTime,
-        pickupLocation: formData.pickupLocation,
-        destination: formData.destination
-      });
-      
-      showToast("Pengajuan kendaraan berhasil dikirim! Menunggu persetujuan pihak Umum.", "success");
+      // Auto-calculate duration
+      const s = new Date(formData.date);
+      const e = new Date(formData.endDate);
+      const diffTime = e.getTime() - s.getTime();
+      const duration = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+
+      if (editBooking && editBooking.id) {
+        await updateVehicleBooking(editBooking.id, {
+          userName: formData.userName,
+          userPhone: formData.userPhone,
+          tripType: formData.tripType,
+          date: formData.date,
+          endDate: formData.endDate,
+          duration: duration,
+          passengers: Number(formData.passengers),
+          event: formData.event,
+          pickupTime: formData.pickupTime,
+          pickupLocation: formData.pickupLocation,
+          destination: formData.destination
+        });
+        showToast("Pengajuan kendaraan berhasil diperbarui!", "success");
+      } else {
+        await createVehicleBooking({
+          userId: user.uid,
+          userName: formData.userName,
+          userPhone: formData.userPhone,
+          tripType: formData.tripType,
+          date: formData.date,
+          endDate: formData.endDate,
+          duration: duration,
+          passengers: Number(formData.passengers),
+          event: formData.event,
+          pickupTime: formData.pickupTime,
+          pickupLocation: formData.pickupLocation,
+          destination: formData.destination
+        });
+        showToast("Pengajuan kendaraan berhasil dikirim! Silakan pantau status pengajuan Anda di halaman Riwayat Booking.", "success");
+      }
       onSuccess();
       onClose();
     } catch (error: any) {
@@ -104,26 +158,30 @@ export default function VehicleBookingModal({ isOpen, onClose, onSuccess }: Vehi
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
             <div className={styles.formGroup}>
-              <label className={styles.formLabel}>Hari / Tanggal</label>
+              <label className={styles.formLabel}>Tanggal Mulai</label>
               <input 
                 type="date" 
                 required 
                 value={formData.date} 
-                onChange={e => setFormData({...formData, date: e.target.value})} 
+                onChange={e => {
+                  const newDate = e.target.value;
+                  setFormData(prev => ({
+                    ...prev, 
+                    date: newDate,
+                    endDate: prev.endDate < newDate ? newDate : prev.endDate
+                  }));
+                }} 
                 className={styles.textInput} 
               />
             </div>
             <div className={styles.formGroup}>
-              <label className={styles.formLabel}>Jumlah Hari</label>
+              <label className={styles.formLabel}>Sampai Tanggal</label>
               <input 
-                type="number" 
-                min="1" 
+                type="date" 
                 required 
-                value={formData.duration} 
-                onChange={e => {
-                  const val = e.target.value === "" ? "" : parseInt(e.target.value);
-                  setFormData({...formData, duration: val as any});
-                }} 
+                min={formData.date}
+                value={formData.endDate} 
+                onChange={e => setFormData({...formData, endDate: e.target.value})} 
                 className={styles.textInput} 
               />
             </div>
@@ -235,7 +293,7 @@ export default function VehicleBookingModal({ isOpen, onClose, onSuccess }: Vehi
           <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
             <button type="button" onClick={onClose} style={{ flex: 1, padding: '0.875rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', background: 'white', fontWeight: 600, cursor: 'pointer' }}>Batal</button>
             <button type="submit" disabled={loading} style={{ flex: 1, padding: '0.875rem', borderRadius: 'var(--radius-md)', border: 'none', background: 'var(--primary)', color: 'white', fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer' }}>
-              {loading ? 'Mengirim...' : 'Ajukan Peminjaman'}
+              {loading ? 'Mengirim...' : (editBooking ? 'Simpan Perubahan' : 'Ajukan Peminjaman')}
             </button>
           </div>
         </form>

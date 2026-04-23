@@ -53,6 +53,7 @@ export interface VehicleBooking {
   userPhone: string;
   tripType: "pp" | "one_way";
   date: string;
+  endDate?: string;
   duration: number; // Jumlah hari
   passengers: number;
   event: string; // Acara/Agenda
@@ -442,7 +443,7 @@ export const createVehicleBooking = async (data: Omit<VehicleBooking, "status" |
 export const getUserVehicleBookings = async (userId: string): Promise<VehicleBooking[]> => {
   if (!db) return [];
   try {
-    const q = query(collection(db, "vehicle_bookings"), where("userId", "==", userId));
+    const q = query(collection(db, "vehicle_bookings"), where("userId", "==", userId), limit(100));
     const snap = await getDocs(q);
     return snap.docs
       .map(doc => ({ id: doc.id, ...doc.data() } as VehicleBooking))
@@ -498,7 +499,8 @@ export const getVehicleHistory = async (): Promise<VehicleBooking[]> => {
   if (!db) return [];
   const q = query(
     collection(db, "vehicle_bookings"), 
-    where("status", "in", ["waiting_asman", "approved", "rejected"])
+    where("status", "in", ["waiting_asman", "approved", "rejected"]),
+    limit(100)
   );
   const snap = await getDocs(q);
   const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as VehicleBooking));
@@ -584,11 +586,18 @@ export const updateItemRequest = async (id: string, data: Partial<Omit<ItemReque
   await updateDoc(docRef, data);
 };
 
+export const updateVehicleBooking = async (id: string, data: Partial<Omit<VehicleBooking, "id" | "status" | "createdAt" | "userId">>) => {
+  if (!db) throw new Error("Firestore not initialized");
+  const docRef = doc(db, "vehicle_bookings", id);
+  await updateDoc(docRef, data);
+};
+
 export const getUserItemRequests = async (userId: string): Promise<ItemRequest[]> => {
   if (!db) return [];
   const q = query(
     collection(db, "item_requests"), 
-    where("userId", "==", userId)
+    where("userId", "==", userId),
+    limit(100)
   );
   const snap = await getDocs(q);
   const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as ItemRequest));
@@ -604,7 +613,8 @@ export const getItemRequestsByStatus = async (statuses: string[]): Promise<ItemR
   if (!db) return [];
   const q = query(
     collection(db, "item_requests"), 
-    where("status", "in", statuses)
+    where("status", "in", statuses),
+    limit(100)
   );
   const snap = await getDocs(q);
   const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as ItemRequest));

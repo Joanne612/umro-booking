@@ -52,17 +52,24 @@ service cloud.firestore {
     }
 
     // Koleksi Vehicle Bookings: PRIVASI KETAT
-    // Hanya Pemilik, Koordinator Driver, Staff Umum, Asman Umum, atau Admin yang bisa baca/tulis
     match /vehicle_bookings/{bookingId} {
       allow read: if request.auth != null && (
         isAdmin() || isKoordinatorDriver() || isStaffUmum() || isAsman() || request.auth.uid == resource.data.userId
       );
       allow create: if request.auth != null && !isViewOnly();
       allow update: if request.auth != null && (
-        isAdmin() || isKoordinatorDriver() || isAsman() || (request.auth.uid == resource.data.userId && !isViewOnly())
+        isAdmin() || isKoordinatorDriver() || isAsman() || (
+          request.auth.uid == resource.data.userId && 
+          !isViewOnly() && 
+          request.resource.data.status == resource.data.status // User tidak boleh ubah status sendiri
+        )
       );
       allow delete: if request.auth != null && (
-        isAdmin() || isKoordinatorDriver() || isAsman() || (request.auth.uid == resource.data.userId && !isViewOnly())
+        isAdmin() || isKoordinatorDriver() || isAsman() || (
+          request.auth.uid == resource.data.userId && 
+          !isViewOnly() && 
+          resource.data.status == 'pending' // Hanya boleh hapus jika masih pending
+        )
       );
     }
 
@@ -74,7 +81,9 @@ service cloud.firestore {
       allow create: if request.auth != null && !isViewOnly();
       allow update: if request.auth != null && (
         isAdmin() || isAsman() || isStaffUmum() || (
-          request.auth.uid == resource.data.userId && resource.data.status == 'pending'
+          request.auth.uid == resource.data.userId && 
+          resource.data.status == 'pending' &&
+          request.resource.data.status == resource.data.status // User tidak boleh ubah status sendiri
         )
       );
       allow delete: if request.auth != null && (

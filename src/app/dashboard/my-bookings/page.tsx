@@ -18,6 +18,7 @@ import {
 } from "@/lib/firebase/firestore";
 import { useToast } from "@/context/ToastContext";
 import BookingModal from "@/components/BookingModal";
+import VehicleBookingModal from "@/components/VehicleBookingModal";
 import ItemRequestModal from "@/components/ItemRequestModal";
 import ConfirmationModal from "@/components/ConfirmationModal";
 import styles from "../dashboard.module.css";
@@ -38,8 +39,10 @@ export default function MyBookingsPage() {
 
   // Modals & Interaction State
   const [isRoomModalOpen, setIsRoomModalOpen] = useState(false);
+  const [isVehicleModalOpen, setIsVehicleModalOpen] = useState(false);
   const [isItemModalOpen, setIsItemModalOpen] = useState(false);
   const [selectedRoomBooking, setSelectedRoomBooking] = useState<BookingData | null>(null);
+  const [vehicleToEdit, setVehicleToEdit] = useState<VehicleBooking | null>(null);
   const [selectedItem, setSelectedItem] = useState<ItemRequest | null>(null);
 
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
@@ -209,43 +212,43 @@ export default function MyBookingsPage() {
                     </p>
 
                     {activeTab === 'zoom' && b.meetingLink && (
-                      <div style={{ 
-                        marginTop: '1rem', 
-                        padding: '1rem', 
-                        background: '#F8FAFC', 
-                        borderRadius: 'var(--radius-md)', 
+                      <div style={{
+                        marginTop: '1rem',
+                        padding: '1rem',
+                        background: '#F8FAFC',
+                        borderRadius: 'var(--radius-md)',
                         border: '1px solid #E2E8F0',
                         fontSize: '0.8125rem',
                         position: 'relative'
                       }}>
-                        <div style={{ 
-                          display: 'flex', 
-                          justifyContent: 'space-between', 
-                          alignItems: 'center', 
+                        <div style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
                           marginBottom: '0.5rem',
                           borderBottom: '1px solid #E2E8F0',
                           paddingBottom: '0.5rem'
                         }}>
                           <span style={{ fontWeight: 700, color: 'var(--primary)', fontSize: '0.75rem' }}>🔗 INFORMASI ZOOM / MEETING</span>
-                          <button 
+                          <button
                             onClick={() => {
                               navigator.clipboard.writeText(b.meetingLink || "");
                               alert("Undangan disalin ke clipboard!");
                             }}
-                            style={{ 
-                              background: 'white', 
-                              border: '1px solid var(--border)', 
-                              padding: '2px 8px', 
-                              fontSize: '0.7rem', 
+                            style={{
+                              background: 'white',
+                              border: '1px solid var(--border)',
+                              padding: '2px 8px',
+                              fontSize: '0.7rem',
                               borderRadius: '4px',
                               cursor: 'pointer',
                               fontWeight: 600
                             }}
                           >Salin Undangan</button>
                         </div>
-                        <div style={{ 
-                          whiteSpace: 'pre-wrap', 
-                          fontFamily: 'monospace', 
+                        <div style={{
+                          whiteSpace: 'pre-wrap',
+                          fontFamily: 'monospace',
                           color: '#334155',
                           lineHeight: '1.5'
                         }}>
@@ -282,28 +285,87 @@ export default function MyBookingsPage() {
                 borderLeft: `4px solid ${v.status === 'approved' ? '#10B981' : v.status === 'rejected' ? '#EF4444' : '#F59E0B'}`
               }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
-                  <div>
-                    <h4 style={{ fontSize: '1.1rem', fontWeight: 700 }}>{v.event}</h4>
-                    <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>
-                      📍 Tujuan: {v.destination} &bull; 📅 {new Date(v.date).toLocaleDateString()}
-                    </p>
-                    <div style={{ marginTop: '0.5rem', display: 'flex', gap: '0.5rem' }}>
-                      <span style={{ fontSize: '0.7rem', padding: '0.2rem 0.6rem', borderRadius: '4px', background: '#F1F5F9', fontWeight: 600 }}>{v.tripType === 'pp' ? 'PULANG PERGI' : 'SEKALI JALAN'}</span>
+                  <div style={{ flex: 1 }}>
+                    <h4 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--foreground)', marginBottom: '0.75rem' }}>{v.event}</h4>
+                    <div style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.35rem' }}>
+                        <span style={{ fontSize: '1rem' }}>👤</span>
+                        <span>PIC: <b style={{ color: 'var(--foreground)' }}>{v.userName}</b></span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.35rem' }}>
+                        <span style={{ fontSize: '1rem' }}>📍</span>
+                        <span>Tujuan: <b style={{ color: 'var(--foreground)' }}>{v.destination}</b></span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', color: 'var(--primary)', fontWeight: 700 }}>
+                        <span style={{ fontSize: '1rem' }}>📅</span>
+                        <span>
+                          {v.endDate && v.endDate !== v.date 
+                            ? `${new Date(v.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })} - ${new Date(v.endDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}` 
+                            : new Date(v.date).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+                          }
+                        </span>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: '0.65rem', padding: '0.25rem 0.8rem', borderRadius: '99px', background: '#F1F5F9', color: '#475569', fontWeight: 700, border: '1px solid #E2E8F0', textTransform: 'uppercase' }}>
+                        {v.tripType === 'pp' ? '🔄 Pulang Pergi' : '➡️ Sekali Jalan'}
+                      </span>
                       <span style={{
-                        fontSize: '0.7rem', padding: '0.2rem 0.6rem', borderRadius: '4px', fontWeight: 700,
+                        fontSize: '0.65rem', padding: '0.25rem 0.8rem', borderRadius: '99px', fontWeight: 800, textTransform: 'uppercase',
                         background: v.status === 'approved' ? '#D1FAE5' : v.status === 'rejected' ? '#FEE2E2' : '#FEF3C7',
-                        color: v.status === 'approved' ? '#10B981' : v.status === 'rejected' ? '#EF4444' : '#D97706'
+                        color: v.status === 'approved' ? '#065F46' : v.status === 'rejected' ? '#991B1B' : '#92400E',
+                        border: `1px solid ${v.status === 'approved' ? '#A7F3D0' : v.status === 'rejected' ? '#FECACA' : '#FDE68A'}`
                       }}>
-                        {v.status === 'approved' ? 'DISETUJUI' : v.status === 'rejected' ? 'DITOLAK' : v.status === 'waiting_asman' ? 'MENUNGGU KONFIRMASI ASMAN' : 'MENUNGGU VALIDASI KOORDINATOR'}
+                        {v.status === 'approved' ? '✓ DISETUJUI' : v.status === 'rejected' ? '✗ DITOLAK' : v.status === 'waiting_asman' ? '⌛ MENUNGGU KONFIRMASI ASMAN' : '⌛ MENUNGGU VALIDASI'}
                       </span>
                     </div>
                   </div>
-                  {(v.status === 'pending' || v.status === 'waiting_asman') && (
-                    <div className={styles.rowActions}>
-                      <button onClick={() => openCancelConfirm(v.id!, 'vehicle')} className={styles.btnCancel}>🗑️ Batalkan</button>
+                  {v.status !== 'approved' && v.status !== 'rejected' && (
+                    <div className={styles.rowActions} style={{ display: 'flex', gap: '0.5rem' }}>
+                      <button 
+                        onClick={() => {
+                          setVehicleToEdit(v);
+                          setIsVehicleModalOpen(true);
+                        }} 
+                        className={styles.btnEdit}
+                        style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.5rem 1rem', borderRadius: '8px' }}
+                      >
+                        <span>📝</span> Edit
+                      </button>
+                      <button 
+                        onClick={() => openCancelConfirm(v.id!, 'vehicle')} 
+                        className={styles.btnCancel}
+                        style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.5rem 1rem', borderRadius: '8px' }}
+                      >
+                        <span>🗑️</span> Batalkan
+                      </button>
                     </div>
                   )}
                 </div>
+
+                {v.vehicleNotes && (
+                  <div style={{ 
+                    marginTop: '1.25rem', 
+                    padding: '1rem 1.25rem', 
+                    background: 'linear-gradient(to right, #F0F9FF, #E0F2FE)', 
+                    borderRadius: '12px', 
+                    border: '1px solid #BAE6FD',
+                    boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.02)',
+                    display: 'flex',
+                    gap: '1rem',
+                    alignItems: 'flex-start'
+                  }}>
+                    <div style={{ fontSize: '1.5rem' }}>🚐</div>
+                    <div>
+                      <label style={{ fontSize: '0.7rem', fontWeight: 800, color: '#0369A1', textTransform: 'uppercase', display: 'block', marginBottom: '0.25rem', letterSpacing: '0.025em' }}>
+                        Informasi Armada & Driver
+                      </label>
+                      <div style={{ color: '#0C4A6E', fontWeight: 700, fontSize: '0.925rem', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
+                        {v.vehicleNotes}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             ))
           )
@@ -324,20 +386,40 @@ export default function MyBookingsPage() {
               }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
                   <div>
-                    <h4 style={{ fontSize: '1.1rem', fontWeight: 700 }}>{i.title}</h4>
-                    <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>{i.category} &bull; {new Date(i.createdAt?.toMillis()).toLocaleDateString()}</p>
+                    <h4 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--foreground)', marginBottom: '0.75rem' }}>{i.title}</h4>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginBottom: '0.75rem' }}>
+                      <div style={{ fontSize: '0.875rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                        <span>📦</span> Kategori: <b style={{ color: 'var(--foreground)' }}>{i.category}</b>
+                      </div>
+                      <div style={{ fontSize: '0.875rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                        <span>📅</span> Diajukan: <b style={{ color: 'var(--foreground)' }}>{new Date(i.createdAt?.toMillis()).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</b>
+                      </div>
+                    </div>
                     <span style={{
-                      display: 'inline-block', marginTop: '0.5rem', fontSize: '0.7rem', padding: '0.2rem 0.6rem', borderRadius: '4px', fontWeight: 700,
+                      display: 'inline-block', fontSize: '0.65rem', padding: '0.25rem 0.8rem', borderRadius: '99px', fontWeight: 800, textTransform: 'uppercase',
                       background: i.status === 'completed' ? '#DBEAFE' : i.status === 'approved' ? '#D1FAE5' : i.status === 'rejected' ? '#FEE2E2' : '#FEF3C7',
-                      color: i.status === 'completed' ? '#3B82F6' : i.status === 'approved' ? '#10B981' : i.status === 'rejected' ? '#EF4444' : '#D97706'
+                      color: i.status === 'completed' ? '#1E40AF' : i.status === 'approved' ? '#065F46' : i.status === 'rejected' ? '#991B1B' : '#92400E',
+                      border: `1px solid ${i.status === 'completed' ? '#BFDBFE' : i.status === 'approved' ? '#A7F3D0' : i.status === 'rejected' ? '#FECACA' : '#FDE68A'}`
                     }}>
-                      {i.status === 'completed' ? 'SELESAI' : i.status === 'approved' ? 'DISETUJUI' : i.status === 'rejected' ? 'DITOLAK' : 'PENDING'}
+                      {i.status === 'completed' ? '✓ SELESAI' : i.status === 'approved' ? '✓ DISETUJUI' : i.status === 'rejected' ? '✗ DITOLAK' : '⌛ PENDING'}
                     </span>
                   </div>
                   {i.status === 'pending' && (
-                    <div className={styles.rowActions}>
-                      <button onClick={() => { setSelectedItem(i); setIsItemModalOpen(true); }} className={styles.btnEdit}>✏️ Edit</button>
-                      <button onClick={() => openCancelConfirm(i.id!, 'item')} className={styles.btnCancel}>🗑️ Hapus</button>
+                    <div className={styles.rowActions} style={{ display: 'flex', gap: '0.5rem' }}>
+                      <button 
+                        onClick={() => { setSelectedItem(i); setIsItemModalOpen(true); }} 
+                        className={styles.btnEdit}
+                        style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.5rem 1rem', borderRadius: '8px' }}
+                      >
+                        <span>📝</span> Edit
+                      </button>
+                      <button 
+                        onClick={() => openCancelConfirm(i.id!, 'item')} 
+                        className={styles.btnCancel}
+                        style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.5rem 1rem', borderRadius: '8px' }}
+                      >
+                        <span>🗑️</span> Hapus
+                      </button>
                     </div>
                   )}
                 </div>
@@ -356,6 +438,15 @@ export default function MyBookingsPage() {
           rooms={rooms.filter(r => activeTab === "meeting" ? r.type === "physical" : r.type === "online")}
           selectedDate={selectedRoomBooking.date}
           editData={selectedRoomBooking}
+        />
+      )}
+
+      {isVehicleModalOpen && (
+        <VehicleBookingModal
+          isOpen={isVehicleModalOpen}
+          onClose={() => { setIsVehicleModalOpen(false); setVehicleToEdit(null); }}
+          onSuccess={fetchData}
+          editBooking={vehicleToEdit}
         />
       )}
 

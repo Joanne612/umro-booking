@@ -98,7 +98,7 @@ export default function ItemRequestModal({ isOpen, onClose, onSuccess, editItem 
           description: formData.description,
           purchaseLinks: formData.purchaseLinks,
         });
-        showToast("Permintaan barang berhasil dikirim! Menunggu persetujuan Asman.", "success");
+        showToast("Pengajuan barang berhasil dikirim! Anda dapat melihat status detailnya di halaman Riwayat Booking.", "success");
       }
       
       onSuccess();

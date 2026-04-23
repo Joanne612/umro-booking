@@ -68,7 +68,13 @@ export default function VehicleDetailModal({ isOpen, onClose, booking }: Vehicle
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '1.5rem' }}>
-            <DetailItem label="Tanggal" value={new Date(booking.date).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} />
+            <DetailItem 
+              label="Tanggal" 
+              value={booking.endDate && booking.endDate !== booking.date 
+                ? `${new Date(booking.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })} - ${new Date(booking.endDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}`
+                : new Date(booking.date).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+              } 
+            />
             <DetailItem label="Jam Jemput" value={`${booking.pickupTime} WIB`} />
             <DetailItem label="PIC / Pengguna" value={booking.userName} />
             <DetailItem label="No. HP" value={booking.userPhone} />

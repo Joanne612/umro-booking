@@ -63,9 +63,17 @@ export default function VehicleApprovalCard({
             )}
           </div>
           <h3 style={{ fontSize: '1.25rem', fontWeight: 800 }}>{booking.destination}</h3>
+          <div style={{ fontSize: '0.85rem', color: 'var(--primary)', fontWeight: 700, marginTop: '0.25rem' }}>
+            👤 PIC/Peminjam: {booking.userName}
+          </div>
         </div>
         <div style={{ textAlign: 'right' }}>
-          <div style={{ fontWeight: 700 }}>📅 {new Date(booking.date).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</div>
+          <div style={{ fontWeight: 700 }}>
+            📅 {booking.endDate && booking.endDate !== booking.date 
+                ? `${new Date(booking.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })} - ${new Date(booking.endDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}`
+                : new Date(booking.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
+            }
+          </div>
           <div style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>Durasi: {booking.duration} Hari</div>
         </div>
       </div>
