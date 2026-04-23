@@ -11,9 +11,10 @@ interface BookingDetailModalProps {
   booking: BookingData | null;
   onClose: () => void;
   onRefresh: () => void;
+  roomType?: "physical" | "online";
 }
 
-export default function BookingDetailModal({ booking, onClose, onRefresh }: BookingDetailModalProps) {
+export default function BookingDetailModal({ booking, onClose, onRefresh, roomType }: BookingDetailModalProps) {
   const { user, userRole } = useAuth();
   const { showToast } = useToast();
   const [isConfirming, setIsConfirming] = React.useState(false);
@@ -122,7 +123,7 @@ export default function BookingDetailModal({ booking, onClose, onRefresh }: Book
                   <div style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '0.25rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                     Kegiatan / Meeting
                   </div>
-                  <div style={{ fontSize: '1.25rem', fontWeight: 600 }}>{booking.title}</div>
+                  <div style={{ fontSize: '1.25rem', fontWeight: 600, overflowWrap: 'break-word', wordBreak: 'break-word' }}>{booking.title}</div>
                 </div>
 
                 {/* Grid for Info */}
@@ -300,40 +301,42 @@ export default function BookingDetailModal({ booking, onClose, onRefresh }: Book
                   )}
                 </div>
 
-                {/* --- SEKSI EKSPOR / LAPORAN (Always Visible) --- */}
-                <div style={{ 
-                  padding: '0.2rem 1rem', 
-                  display: 'flex', 
-                  justifyContent: 'space-between', 
-                  alignItems: 'center',
-                  background: 'rgba(0,0,0,0.02)',
-                  borderRadius: 'var(--radius-md)',
-                  border: '1px dashed var(--border)'
-                }}>
-                  <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#94A3B8', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
-                     opsi laporan:
+                {/* --- SEKSI EKSPOR / LAPORAN (Hidden for Zoom) --- */}
+                {roomType !== "online" && (
+                  <div style={{ 
+                    padding: '0.2rem 1rem', 
+                    display: 'flex', 
+                    justifyContent: 'space-between', 
+                    alignItems: 'center',
+                    background: 'rgba(0,0,0,0.02)',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px dashed var(--border)'
+                  }}>
+                    <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#94A3B8', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+                       opsi laporan:
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <button 
+                        onClick={() => exportConsumptionToPDF([booking])}
+                        style={{ 
+                          padding: '0.4rem 0.8rem', 
+                          background: 'transparent', 
+                          border: '1px solid #EF4444', 
+                          color: '#DC2626', 
+                          borderRadius: 'var(--radius-sm)', 
+                          fontSize: '0.7rem', 
+                          fontWeight: 700, 
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.3rem'
+                        }}
+                      >
+                        📄 PDF
+                      </button>
+                    </div>
                   </div>
-                  <div style={{ display: 'flex', gap: '0.5rem' }}>
-                    <button 
-                      onClick={() => exportConsumptionToPDF([booking])}
-                      style={{ 
-                        padding: '0.4rem 0.8rem', 
-                        background: 'transparent', 
-                        border: '1px solid #EF4444', 
-                        color: '#DC2626', 
-                        borderRadius: 'var(--radius-sm)', 
-                        fontSize: '0.7rem', 
-                        fontWeight: 700, 
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.3rem'
-                      }}
-                    >
-                      📄 PDF
-                    </button>
-                  </div>
-                </div>
+                )}
 
                 {/* --- SEKSI KONSUMSI --- */}
                 {booking.consumption?.requested && (

@@ -364,8 +364,7 @@ export default function BookingModal({
             <input 
               required 
               type="text" 
-              maxLength={60}
-              placeholder="Cth: Rapat Evaluasi Bulanan (Maks 60 Karakter)" 
+              placeholder="Cth: Rapat Evaluasi Bulanan Tingkat Manajer dan Direksi" 
               value={formData.title} 
               onChange={(e) => setFormData({ ...formData, title: e.target.value })} 
               className={styles.textInput} 
@@ -378,7 +377,6 @@ export default function BookingModal({
               <input 
                 required 
                 type="text" 
-                maxLength={30}
                 placeholder="Cth: SDM / Teknik" 
                 value={formData.division} 
                 onChange={(e) => setFormData({ ...formData, division: e.target.value })} 

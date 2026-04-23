@@ -187,6 +187,7 @@ export default function BookingPage() {
       {selectedBooking && (
         <BookingDetailModal
           booking={selectedBooking}
+          roomType={selectedType || undefined}
           onClose={() => setSelectedBooking(null)}
           onRefresh={() => {}} /* onSnapshot will handle auto-refresh */
         />

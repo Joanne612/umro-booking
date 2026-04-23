@@ -192,8 +192,8 @@ export default function MyBookingsPage() {
               }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
                   <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.25rem' }}>
-                      <h4 style={{ fontSize: '1.1rem', fontWeight: 700 }}>{b.title}</h4>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.25rem', flexWrap: 'wrap' }}>
+                      <h4 style={{ fontSize: '1.1rem', fontWeight: 700, overflowWrap: 'break-word', wordBreak: 'break-word', maxWidth: '100%' }}>{b.title}</h4>
                       <span style={{
                         fontSize: '0.65rem', padding: '0.2rem 0.5rem', borderRadius: '20px', fontWeight: 700,
                         background: b.status === 'active' ? '#D1FAE5' : '#F1F5F9', color: b.status === 'active' ? '#10B981' : '#64748B'
@@ -254,11 +254,11 @@ export default function MyBookingsPage() {
                       </div>
                     )}
                   </div>
-                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <div className={styles.rowActions}>
                     {b.status === 'active' && (
                       <>
-                        <button onClick={() => { setSelectedRoomBooking(b as BookingData); setIsRoomModalOpen(true); }} className="btn-secondary">✏️ Edit</button>
-                        <button onClick={() => openCancelConfirm(b.id!, activeTab, b.groupId)} className="btn-danger">Batal</button>
+                        <button onClick={() => { setSelectedRoomBooking(b as BookingData); setIsRoomModalOpen(true); }} className={styles.btnEdit}>✏️ Edit</button>
+                        <button onClick={() => openCancelConfirm(b.id!, activeTab, b.groupId)} className={styles.btnCancel}>🗑️ Batal</button>
                       </>
                     )}
                   </div>
@@ -299,7 +299,9 @@ export default function MyBookingsPage() {
                     </div>
                   </div>
                   {(v.status === 'pending' || v.status === 'waiting_asman') && (
-                    <button onClick={() => openCancelConfirm(v.id!, 'vehicle')} className="btn-danger">Batalkan</button>
+                    <div className={styles.rowActions}>
+                      <button onClick={() => openCancelConfirm(v.id!, 'vehicle')} className={styles.btnCancel}>🗑️ Batalkan</button>
+                    </div>
                   )}
                 </div>
               </div>
@@ -333,9 +335,9 @@ export default function MyBookingsPage() {
                     </span>
                   </div>
                   {i.status === 'pending' && (
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
-                      <button onClick={() => { setSelectedItem(i); setIsItemModalOpen(true); }} className="btn-secondary">Edit</button>
-                      <button onClick={() => openCancelConfirm(i.id!, 'item')} className="btn-danger">Hapus</button>
+                    <div className={styles.rowActions}>
+                      <button onClick={() => { setSelectedItem(i); setIsItemModalOpen(true); }} className={styles.btnEdit}>✏️ Edit</button>
+                      <button onClick={() => openCancelConfirm(i.id!, 'item')} className={styles.btnCancel}>🗑️ Hapus</button>
                     </div>
                   )}
                 </div>
@@ -351,7 +353,7 @@ export default function MyBookingsPage() {
         <BookingModal
           isOpen={isRoomModalOpen}
           onClose={() => { setIsRoomModalOpen(false); setSelectedRoomBooking(null); fetchData(); }}
-          rooms={rooms}
+          rooms={rooms.filter(r => activeTab === "meeting" ? r.type === "physical" : r.type === "online")}
           selectedDate={selectedRoomBooking.date}
           editData={selectedRoomBooking}
         />
