@@ -10,6 +10,7 @@ import {
   updateConsumptionStatus,
   subscribeToWaitingAsmanVehicles,
   subscribeToVehicleHistory,
+  acknowledgeVehicleBooking,
   updateVehicleBookingStatus,
   getItemRequestsByStatus,
   updateItemRequestStatus,
@@ -150,13 +151,12 @@ export default function ApprovalsPage() {
     if (!user) return;
     setProcessingId(bookingId);
     try {
-      await updateVehicleBookingStatus(
+      await acknowledgeVehicleBooking(
         bookingId,
-        "approved",
         user.uid,
         user.displayName || user.email || "Asman Umum"
       );
-      showToast("Peminjaman kendaraan berhasil disetujui.", "success");
+      showToast("Peminjaman kendaraan telah diketahui.", "success");
       fetchData();
     } catch (error: any) {
       showToast("Gagal memproses: " + error.message, "error");
@@ -410,7 +410,30 @@ export default function ApprovalsPage() {
               <div key={booking.id} style={{ background: 'white', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)', overflow: 'hidden', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
                 <div style={{ padding: '1.25rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', background: viewMode === 'history' ? '#F8FAFC' : 'rgba(0,162,233,0.02)' }}>
                   <div>
-                    <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--primary)', textTransform: 'uppercase', marginBottom: '0.25rem' }}>{booking.division}</div>
+                    {booking.ticketId && (
+                      <div style={{ 
+                        fontSize: '0.7rem', 
+                        fontFamily: 'monospace', 
+                        color: '#475569', 
+                        marginBottom: '0.5rem', 
+                        fontWeight: 700,
+                        background: '#EEF2FF',
+                        padding: '0.2rem 0.5rem',
+                        borderRadius: '4px',
+                        border: '1px dashed #C7D2FE',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.3rem'
+                      }}>
+                        <span>🎫</span> #{booking.ticketId}
+                      </div>
+                    )}
+                    <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--primary)', textTransform: 'uppercase', marginBottom: '0.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      {booking.division}
+                      {booking.isHybrid && (
+                        <span style={{ background: '#E0F2FE', color: '#0369A1', padding: '0.1rem 0.4rem', borderRadius: '4px', fontSize: '0.65rem' }}>🌐 HYBRID</span>
+                      )}
+                    </div>
                     <h3 style={{ fontSize: '1.125rem', fontWeight: 700 }}>{booking.title}</h3>
                   </div>
                   <div style={{ textAlign: 'right' }}>
@@ -548,7 +571,25 @@ export default function ApprovalsPage() {
                 <div key={req.id} style={{ background: 'white', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)', overflow: 'hidden', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
                   <div style={{ padding: '1.25rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: viewMode === 'history' ? '#F8FAFC' : 'rgba(0,162,233,0.02)' }}>
                     <div>
-                      <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--primary)', textTransform: 'uppercase' }}>{req.category}</span>
+                      {req.ticketId && (
+                        <div style={{ 
+                          fontSize: '0.7rem', 
+                          fontFamily: 'monospace', 
+                          color: '#475569', 
+                          marginBottom: '0.5rem', 
+                          fontWeight: 700,
+                          background: '#EEF2FF',
+                          padding: '0.2rem 0.5rem',
+                          borderRadius: '4px',
+                          border: '1px dashed #C7D2FE',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.3rem'
+                        }}>
+                          <span>🎫</span> #{req.ticketId}
+                        </div>
+                      )}
+                      <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--primary)', textTransform: 'uppercase', display: 'block' }}>{req.category}</span>
                       <h3 style={{ fontSize: '1.125rem', fontWeight: 700 }}>{req.title}</h3>
                     </div>
                   </div>

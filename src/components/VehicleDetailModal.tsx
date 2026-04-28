@@ -25,7 +25,7 @@ export default function VehicleDetailModal({ isOpen, onClose, booking }: Vehicle
     switch (status) {
       case 'approved': return 'Disetujui';
       case 'rejected': return 'Ditolak';
-      case 'waiting_asman': return 'Divalidasi Umum';
+      case 'waiting_asman': return 'Disetujui (Mengetahui Asman)';
       default: return 'Menunggu Validasi';
     }
   };
@@ -57,8 +57,27 @@ export default function VehicleDetailModal({ isOpen, onClose, booking }: Vehicle
           >
             &times;
           </button>
-          <div style={{ fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', opacity: 0.9, marginBottom: '0.25rem' }}>Status Pengajuan</div>
-          <h2 style={{ fontSize: '1.5rem', fontWeight: 800 }}>{getStatusLabel(booking.status)}</h2>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div>
+              <div style={{ fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', opacity: 0.9, marginBottom: '0.25rem' }}>Status Pengajuan</div>
+              <h2 style={{ fontSize: '1.5rem', fontWeight: 800 }}>{getStatusLabel(booking.status)}</h2>
+            </div>
+            {booking.ticketId && (
+              <div style={{ 
+                background: 'rgba(255,255,255,0.2)', 
+                padding: '0.4rem 0.8rem', 
+                borderRadius: '6px', 
+                fontSize: '0.85rem', 
+                fontFamily: 'monospace', 
+                fontWeight: 700,
+                marginTop: '0.2rem',
+                marginRight: '1rem',
+                border: '1px solid rgba(255,255,255,0.3)'
+              }}>
+                #{booking.ticketId}
+              </div>
+            )}
+          </div>
         </div>
 
         <div style={{ padding: '1.5rem' }}>

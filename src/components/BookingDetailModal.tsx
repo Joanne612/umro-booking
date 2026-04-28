@@ -118,6 +118,13 @@ export default function BookingDetailModal({ booking, onClose, onRefresh, roomTy
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                {/* Ticket ID */}
+                {booking.ticketId && (
+                  <div style={{ fontSize: '0.75rem', fontFamily: 'monospace', color: 'var(--primary)', fontWeight: 700, background: 'rgba(59, 130, 246, 0.08)', padding: '0.25rem 0.6rem', borderRadius: '4px', width: 'fit-content', marginBottom: '-0.75rem' }}>
+                    TICKET REF: #{booking.ticketId}
+                  </div>
+                )}
+
                 {/* Title Section */}
                 <div>
                   <div style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '0.25rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
@@ -165,6 +172,28 @@ export default function BookingDetailModal({ booking, onClose, onRefresh, roomTy
                   <div style={{ gridColumn: 'span 2' }}>
                     <div style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '0.25rem' }}>Divisi</div>
                     <div style={{ fontWeight: 500 }}>👥 {booking.division}</div>
+                  </div>
+                  <div style={{ gridColumn: 'span 2' }}>
+                    <div style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '0.25rem' }}>Jenis Meeting</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+                      <div style={{ fontWeight: 500 }}>🏷️ {booking.meetingType || 'Internal Fungsi'}</div>
+                      {booking.isHybrid && (
+                        <span style={{ 
+                          fontSize: '0.65rem', 
+                          fontWeight: 800, 
+                          background: '#E0F2FE', 
+                          color: '#0369A1', 
+                          padding: '0.1rem 0.4rem', 
+                          borderRadius: '4px',
+                          textTransform: 'uppercase',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.2rem'
+                        }}>
+                          🌐 Hybrid
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
 

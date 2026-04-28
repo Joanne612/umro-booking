@@ -3,8 +3,9 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/context/ToastContext";
-import { initAndGetRooms, updateRoom, addRoom, deleteRoom, Room, getAllUsers, updateUserRole, UserRole } from "@/lib/firebase/firestore";
+import { initAndGetRooms, updateRoom, addRoom, deleteRoom, Room, getAllUsers, updateUserRole, deleteUserAccount, UserRole } from "@/lib/firebase/firestore";
 import styles from "../dashboard.module.css";
+import ConfirmationModal from "@/components/ConfirmationModal";
 
 export default function AdminPage() {
   const { user, userRole } = useAuth();
@@ -33,8 +34,12 @@ export default function AdminPage() {
   const [newRoomType, setNewRoomType] = useState<"physical" | "online">("physical");
 
   // Role Change Confirmation State
-  const [roleChangePending, setRoleChangePending] = useState<{ uid: string; name: string; newRole: "admin" | "asman" | "koordinator_driver" | "staff_umum" | "user" | "view" } | null>(null);
+  const [roleChangePending, setRoleChangePending] = useState<{ uid: string; name: string; newRole: "admin" | "asman" | "koordinator_driver" | "staff_umum" | "user" | "view" | "driver" } | null>(null);
   const [roleChanging, setRoleChanging] = useState(false);
+
+  // User Deletion State
+  const [userDeletePending, setUserDeletePending] = useState<{ uid: string; name: string } | null>(null);
+  const [userDeleting, setUserDeleting] = useState(false);
 
   const fetchRooms = async () => {
     setRoomsLoading(true);
@@ -115,6 +120,21 @@ export default function AdminPage() {
       showToast("Gagal memperbarui role: " + error.message, "error");
     } finally {
       setRoleChanging(false);
+    }
+  };
+
+  const confirmUserDelete = async () => {
+    if (!userDeletePending) return;
+    setUserDeleting(true);
+    try {
+      await deleteUserAccount(userDeletePending.uid);
+      showToast(`Pengguna ${userDeletePending.name} telah dihapus dari sistem.`, "success");
+      setUserDeletePending(null);
+      fetchUsers();
+    } catch (error: any) {
+      showToast("Gagal menghapus pengguna: " + error.message, "error");
+    } finally {
+      setUserDeleting(false);
     }
   };
 
@@ -357,7 +377,8 @@ export default function AdminPage() {
                   <th style={{ padding: '1rem', fontSize: '0.875rem', fontWeight: 700 }}>PENGGUNA</th>
                   <th style={{ padding: '1rem', fontSize: '0.875rem', fontWeight: 700 }}>EMAIL</th>
                   <th style={{ padding: '1rem', fontSize: '0.875rem', fontWeight: 700 }}>ROLE SEKARANG</th>
-                  <th style={{ padding: '1rem', fontSize: '0.875rem', fontWeight: 700, textAlign: 'right' }}>UBAH HAK AKSES</th>
+                  <th style={{ padding: '1rem', fontSize: '0.875rem', fontWeight: 700 }}>UBAH HAK AKSES</th>
+                  <th style={{ padding: '1rem', fontSize: '0.875rem', fontWeight: 700, textAlign: 'right' }}>AKSI</th>
                 </tr>
               </thead>
               <tbody>
@@ -404,9 +425,28 @@ export default function AdminPage() {
                         <option value="asman">Asman Umum (Persetujuan Konsumsi)</option>
                         <option value="koordinator_driver">Koordinator Driver (Kendaraan)</option>
                         <option value="staff_umum">Staff Umum (Kelola Konsumsi)</option>
+                        <option value="driver">Driver (Operasional)</option>
                         <option value="admin">Admin (Full Control)</option>
                         <option value="view">View Only</option>
                       </select>
+                    </td>
+                    <td style={{ padding: '1rem', textAlign: 'right' }}>
+                      <button
+                        onClick={() => setUserDeletePending({ uid: u.uid, name: u.name })}
+                        disabled={u.uid === user?.uid}
+                        title="Hapus Pengguna"
+                        style={{
+                          background: '#FEE2E2',
+                          color: '#EF4444',
+                          border: 'none',
+                          padding: '0.5rem 0.75rem',
+                          borderRadius: 'var(--radius-md)',
+                          cursor: u.uid === user?.uid ? 'not-allowed' : 'pointer',
+                          opacity: u.uid === user?.uid ? 0.5 : 1
+                        }}
+                      >
+                        🗑️
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -476,6 +516,18 @@ export default function AdminPage() {
           </div>
         </div>
       )}
+      {/* User Deletion Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={!!userDeletePending}
+        onClose={() => setUserDeletePending(null)}
+        onConfirm={confirmUserDelete}
+        title="Hapus Pengguna"
+        message={`Apakah Anda yakin ingin menghapus "${userDeletePending?.name}"? Pengguna ini tidak akan bisa login lagi sebelum mendaftar ulang.`}
+        confirmLabel="Ya, Hapus Pengguna"
+        cancelLabel="Batal"
+        type="danger"
+        isLoading={userDeleting}
+      />
     </div>
   );
 }

@@ -1,6 +1,10 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
-import { getFirestore, enableMultiTabIndexedDbPersistence } from "firebase/firestore";
+import { 
+  initializeFirestore, 
+  persistentLocalCache, 
+  persistentMultipleTabManager 
+} from "firebase/firestore";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "mock-api-key",
@@ -20,18 +24,12 @@ try {
 }
 
 const auth = app ? getAuth(app) : null;
-const db = app ? getFirestore(app) : null;
 
-// Enable persistence
-if (db && typeof window !== "undefined") {
-  enableMultiTabIndexedDbPersistence(db).catch((err) => {
-    if (err.code === "failed-precondition") {
-      console.warn("Persistence failed: Multiple tabs open.");
-    } else if (err.code === "unimplemented") {
-      console.warn("Persistence not supported by this browser.");
-    }
-  });
-}
+// Modern way to enable persistence (Multi-Tab) without the deprecation warning
+const db = app ? initializeFirestore(app, {
+  localCache: persistentLocalCache({
+    tabManager: persistentMultipleTabManager()
+  })
+}) : null;
 
 export { app, auth, db };
-

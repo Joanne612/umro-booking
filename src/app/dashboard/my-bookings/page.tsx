@@ -4,11 +4,14 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import {
   getUserBookings,
+  getUserVehicleBookings,
+  getUserItemRequests,
+  subscribeToUserBookings,
+  subscribeToUserVehicles,
+  subscribeToUserItems,
   cancelBooking,
   cancelBookingSeries,
   initAndGetRooms,
-  getUserVehicleBookings,
-  getUserItemRequests,
   cancelVehicleBooking,
   deleteItemRequest,
   BookingData,
@@ -51,28 +54,37 @@ export default function MyBookingsPage() {
 
   const fetchData = async () => {
     if (!user) return;
-    setLoading(true);
     try {
-      const [bookingsData, vehiclesData, itemsData, roomsData] = await Promise.all([
-        getUserBookings(user.uid),
-        getUserVehicleBookings(user.uid),
-        getUserItemRequests(user.uid),
-        initAndGetRooms()
-      ]);
-
-      setRoomBookings(bookingsData);
-      setVehicles(vehiclesData);
-      setItems(itemsData);
+      const roomsData = await initAndGetRooms();
       setRooms(roomsData);
     } catch (error: any) {
-      showToast("Gagal memuat data: " + error.message, "error");
-    } finally {
-      setLoading(false);
+      showToast("Gagal memuat data ruangan: " + error.message, "error");
     }
   };
 
   useEffect(() => {
+    if (!user) return;
+    
+    setLoading(true);
     fetchData();
+
+    // Subscribe to all my data
+    const unsubRooms = subscribeToUserBookings(user.uid, (data) => {
+      setRoomBookings(data);
+    });
+    const unsubVehicles = subscribeToUserVehicles(user.uid, (data) => {
+      setVehicles(data);
+    });
+    const unsubItems = subscribeToUserItems(user.uid, (data) => {
+      setItems(data);
+      setLoading(false); // Only set loading false once all data is initially received
+    });
+
+    return () => {
+      unsubRooms();
+      unsubVehicles();
+      unsubItems();
+    };
   }, [user]);
 
   // Filtering Rooms by Type (Meeting vs Zoom)
@@ -172,7 +184,7 @@ export default function MyBookingsPage() {
       {/* Tabs */}
       <div className={styles.tabsContainer}>
         <button onClick={() => setActiveTab('meeting')} className={`${styles.tabButton} ${activeTab === 'meeting' ? styles.active : ""}`}>🏢 Ruang Meeting</button>
-        <button onClick={() => setActiveTab('zoom')} className={`${styles.tabButton} ${activeTab === 'zoom' ? styles.active : ""}`}>💻 Ruang Zoom</button>
+        <button onClick={() => setActiveTab('zoom')} className={`${styles.tabButton} ${activeTab === 'zoom' ? styles.active : ""}`}>💻 Zoom Meeting</button>
         <button onClick={() => setActiveTab('vehicle')} className={`${styles.tabButton} ${activeTab === 'vehicle' ? styles.active : ""}`}>🚗 Peminjaman Kendaraan</button>
         <button onClick={() => setActiveTab('item')} className={`${styles.tabButton} ${activeTab === 'item' ? styles.active : ""}`}>📦 Permintaan Barang</button>
       </div>
@@ -195,6 +207,24 @@ export default function MyBookingsPage() {
               }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
                   <div>
+                    {b.ticketId && (
+                      <div style={{
+                        fontSize: '0.75rem',
+                        fontFamily: 'monospace',
+                        color: '#475569',
+                        marginBottom: '0.5rem',
+                        fontWeight: 700,
+                        background: '#F1F5F9',
+                        padding: '0.25rem 0.6rem',
+                        borderRadius: '4px',
+                        border: '1px dashed #CBD5E1',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.4rem'
+                      }}>
+                        <span>🎫</span> #{b.ticketId}
+                      </div>
+                    )}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.25rem', flexWrap: 'wrap' }}>
                       <h4 style={{ fontSize: '1.1rem', fontWeight: 700, overflowWrap: 'break-word', wordBreak: 'break-word', maxWidth: '100%' }}>{b.title}</h4>
                       <span style={{
@@ -209,6 +239,9 @@ export default function MyBookingsPage() {
                       📅 {(b as any).isGroup
                         ? `${new Date((b as any).minDate).toLocaleDateString()} - ${new Date((b as any).maxDate).toLocaleDateString()}`
                         : new Date(b.date).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                    </p>
+                    <p style={{ fontSize: '0.875rem', marginTop: '0.25rem' }}>
+                      🏷️ <b>Jenis Meeting:</b> {b.meetingType || 'Internal Fungsi'} {b.isHybrid && <span style={{ color: 'var(--primary)', fontWeight: 700, marginLeft: '0.5rem' }}>🌐 (Hybrid)</span>}
                     </p>
 
                     {activeTab === 'zoom' && b.meetingLink && (
@@ -286,6 +319,24 @@ export default function MyBookingsPage() {
               }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
                   <div style={{ flex: 1 }}>
+                    {v.ticketId && (
+                      <div style={{
+                        fontSize: '0.75rem',
+                        fontFamily: 'monospace',
+                        color: '#475569',
+                        marginBottom: '0.6rem',
+                        fontWeight: 700,
+                        background: '#F1F5F9',
+                        padding: '0.3rem 0.7rem',
+                        borderRadius: '4px',
+                        border: '1px dashed #CBD5E1',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.5rem'
+                      }}>
+                        <span>🎫</span> #{v.ticketId}
+                      </div>
+                    )}
                     <h4 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--foreground)', marginBottom: '0.75rem' }}>{v.event}</h4>
                     <div style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.35rem' }}>
@@ -299,8 +350,8 @@ export default function MyBookingsPage() {
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', color: 'var(--primary)', fontWeight: 700 }}>
                         <span style={{ fontSize: '1rem' }}>📅</span>
                         <span>
-                          {v.endDate && v.endDate !== v.date 
-                            ? `${new Date(v.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })} - ${new Date(v.endDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}` 
+                          {v.endDate && v.endDate !== v.date
+                            ? `${new Date(v.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })} - ${new Date(v.endDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}`
                             : new Date(v.date).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
                           }
                         </span>
@@ -316,24 +367,24 @@ export default function MyBookingsPage() {
                         color: v.status === 'approved' ? '#065F46' : v.status === 'rejected' ? '#991B1B' : '#92400E',
                         border: `1px solid ${v.status === 'approved' ? '#A7F3D0' : v.status === 'rejected' ? '#FECACA' : '#FDE68A'}`
                       }}>
-                        {v.status === 'approved' ? '✓ DISETUJUI' : v.status === 'rejected' ? '✗ DITOLAK' : v.status === 'waiting_asman' ? '⌛ MENUNGGU KONFIRMASI ASMAN' : '⌛ MENUNGGU VALIDASI'}
+                        {v.status === 'approved' ? '✓ DISETUJUI' : v.status === 'rejected' ? '✗ DITOLAK' : '⌛ MENUNGGU VALIDASI'}
                       </span>
                     </div>
                   </div>
                   {v.status !== 'approved' && v.status !== 'rejected' && (
                     <div className={styles.rowActions} style={{ display: 'flex', gap: '0.5rem' }}>
-                      <button 
+                      <button
                         onClick={() => {
                           setVehicleToEdit(v);
                           setIsVehicleModalOpen(true);
-                        }} 
+                        }}
                         className={styles.btnEdit}
                         style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.5rem 1rem', borderRadius: '8px' }}
                       >
                         <span>📝</span> Edit
                       </button>
-                      <button 
-                        onClick={() => openCancelConfirm(v.id!, 'vehicle')} 
+                      <button
+                        onClick={() => openCancelConfirm(v.id!, 'vehicle')}
                         className={styles.btnCancel}
                         style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.5rem 1rem', borderRadius: '8px' }}
                       >
@@ -344,11 +395,11 @@ export default function MyBookingsPage() {
                 </div>
 
                 {v.vehicleNotes && (
-                  <div style={{ 
-                    marginTop: '1.25rem', 
-                    padding: '1rem 1.25rem', 
-                    background: 'linear-gradient(to right, #F0F9FF, #E0F2FE)', 
-                    borderRadius: '12px', 
+                  <div style={{
+                    marginTop: '1.25rem',
+                    padding: '1rem 1.25rem',
+                    background: 'linear-gradient(to right, #F0F9FF, #E0F2FE)',
+                    borderRadius: '12px',
                     border: '1px solid #BAE6FD',
                     boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.02)',
                     display: 'flex',
@@ -386,6 +437,24 @@ export default function MyBookingsPage() {
               }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
                   <div>
+                    {i.ticketId && (
+                      <div style={{
+                        fontSize: '0.75rem',
+                        fontFamily: 'monospace',
+                        color: '#475569',
+                        marginBottom: '0.6rem',
+                        fontWeight: 700,
+                        background: '#F1F5F9',
+                        padding: '0.3rem 0.7rem',
+                        borderRadius: '4px',
+                        border: '1px dashed #CBD5E1',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.5rem'
+                      }}>
+                        <span>🎫</span> #{i.ticketId}
+                      </div>
+                    )}
                     <h4 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--foreground)', marginBottom: '0.75rem' }}>{i.title}</h4>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginBottom: '0.75rem' }}>
                       <div style={{ fontSize: '0.875rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
@@ -406,15 +475,15 @@ export default function MyBookingsPage() {
                   </div>
                   {i.status === 'pending' && (
                     <div className={styles.rowActions} style={{ display: 'flex', gap: '0.5rem' }}>
-                      <button 
-                        onClick={() => { setSelectedItem(i); setIsItemModalOpen(true); }} 
+                      <button
+                        onClick={() => { setSelectedItem(i); setIsItemModalOpen(true); }}
                         className={styles.btnEdit}
                         style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.5rem 1rem', borderRadius: '8px' }}
                       >
                         <span>📝</span> Edit
                       </button>
-                      <button 
-                        onClick={() => openCancelConfirm(i.id!, 'item')} 
+                      <button
+                        onClick={() => openCancelConfirm(i.id!, 'item')}
                         className={styles.btnCancel}
                         style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.5rem 1rem', borderRadius: '8px' }}
                       >

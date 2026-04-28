@@ -4,17 +4,20 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import {
   getDashboardStats,
-  getPendingConsumptionBookings,
-  getApprovedConsumptionBookings,
-  getItemRequestsByStatus,
-  getPendingVehicleBookings,
-  getWaitingAsmanVehicleBookings,
-  getMyRecentActivity,
-  getIncompleteZoomBookings,
+  subscribeToPendingConsumption,
+  subscribeToApprovedConsumption,
+  subscribeToPendingItemRequests,
+  subscribeToPendingVehicles,
+  subscribeToWaitingAsmanVehicles,
+  subscribeToIncompleteZoom,
+  subscribeToUserBookings,
+  getDriverByEmail,
+  subscribeToAssignedTrips,
   updateBookingLink,
   BookingData,
   ItemRequest,
-  VehicleBooking
+  VehicleBooking,
+  DriverTrip
 } from "@/lib/firebase/firestore";
 import styles from "./dashboard.module.css";
 import Link from "next/link";
@@ -23,8 +26,9 @@ import UpdateLinkModal from "@/components/UpdateLinkModal";
 export default function DashboardMonitoring() {
   const { user, userRole } = useAuth();
   const [stats, setStats] = useState<any>(null);
-  const [pendingItems, setPendingItems] = useState<{ id: string, title: string, type: string, user: string, link?: string }[]>([]);
+  const [pendingItems, setPendingItems] = useState<{ id?: string, title: string, type: string, user: string, link?: string }[]>([]);
   const [incompleteZoomBookings, setIncompleteZoomBookings] = useState<BookingData[]>([]);
+  const [activeTrips, setActiveTrips] = useState<DriverTrip[]>([]);
   const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
   const [selectedBookingForLink, setSelectedBookingForLink] = useState<BookingData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -32,53 +36,13 @@ export default function DashboardMonitoring() {
   useEffect(() => {
     if (!user) return;
 
-    const fetchData = async () => {
+    let unsubs: (() => void)[] = [];
+
+    const fetchStatsData = async () => {
       setLoading(true);
       try {
         const dashboardData = await getDashboardStats(user.uid, userRole || "user");
         setStats(dashboardData);
-
-        // Fetch small summary for "Needs Action" or "My Requests"
-        let list: any[] = [];
-        if (["admin", "asman", "staff_umum", "koordinator_driver"].includes(userRole || "")) {
-          if (userRole === "staff_umum") {
-            const cons = await getApprovedConsumptionBookings();
-            cons.slice(0, 2).forEach(c => list.push({ id: c.id, title: c.title, type: "Konsumsi", user: c.userName, link: "/dashboard/approvals" }));
-            
-            const items = await getItemRequestsByStatus(["approved"]);
-            items.slice(0, 2).forEach(i => list.push({ id: i.id, title: i.title, type: "Barang", user: i.userName, link: "/dashboard/approvals" }));
-          } else if (userRole === "koordinator_driver") {
-            const vehicles = await getPendingVehicleBookings();
-            vehicles.slice(0, 4).forEach(v => list.push({ id: v.id, title: v.event, type: "Kendaraan", user: v.userName, link: "/dashboard/approvals" }));
-          } else {
-            // Admin or Asman
-            const cons = await getPendingConsumptionBookings();
-            cons.slice(0, 2).forEach(c => list.push({ id: c.id, title: c.title, type: "Konsumsi", user: c.userName, link: "/dashboard/approvals" }));
-            
-            const items = await getItemRequestsByStatus(["pending"]);
-            items.slice(0, 2).forEach(i => list.push({ id: i.id, title: i.title, type: "Barang", user: i.userName, link: "/dashboard/approvals" }));
-
-            const vehicles = await getWaitingAsmanVehicleBookings();
-            vehicles.slice(0, 2).forEach(v => list.push({ id: v.id, title: v.event, type: "Kendaraan", user: v.userName, link: "/dashboard/approvals" }));
-          }
-        } else {
-          // Regular users see their own recent activity
-          const recent = await getMyRecentActivity(user.uid);
-          list = recent.map(r => ({
-            id: r.id,
-            title: r.title,
-            type: r.type,
-            user: r.status, // Map status to 'user' field for display in Meta
-            link: "/dashboard/my-bookings"
-          }));
-        }
-        setPendingItems(list);
-
-        // Fetch Incomplete Zoom Bookings for ADMIN only
-        if (userRole === "admin") {
-          const zoomPending = await getIncompleteZoomBookings();
-          setIncompleteZoomBookings(zoomPending);
-        }
       } catch (error) {
         console.error("Error fetching stats:", error);
       } finally {
@@ -86,7 +50,80 @@ export default function DashboardMonitoring() {
       }
     };
 
-    fetchData();
+    fetchStatsData();
+
+    // REAL-TIME ACTION LISTS
+    if (userRole === "staff_umum") {
+        unsubs.push(subscribeToApprovedConsumption(data => {
+            setPendingItems(prev => {
+                const filtered = prev.filter(i => i.type !== "Konsumsi");
+                return [...filtered, ...data.slice(0, 2).map(c => ({ id: c.id, title: c.title, type: "Konsumsi", user: c.userName, link: "/dashboard/approvals" }))];
+            });
+        }));
+        unsubs.push(subscribeToPendingItemRequests(["approved"], data => {
+            setPendingItems(prev => {
+                const filtered = prev.filter(i => i.type !== "Barang");
+                return [...filtered, ...data.slice(0, 2).map(i => ({ id: i.id, title: i.title, type: "Barang", user: i.userName, link: "/dashboard/approvals" }))];
+            });
+        }));
+    } else if (userRole === "koordinator_driver") {
+        unsubs.push(subscribeToPendingVehicles(data => {
+            setPendingItems(data.slice(0, 4).map(v => ({ id: v.id, title: v.event, type: "Kendaraan", user: v.userName, link: "/dashboard/vehicles/approvals" })));
+        }));
+    } else if (userRole === "admin" || userRole === "asman") {
+        unsubs.push(subscribeToPendingConsumption(data => {
+            setPendingItems(prev => {
+                const filtered = prev.filter(i => i.type !== "Konsumsi");
+                return [...filtered, ...data.slice(0, 2).map(c => ({ id: c.id, title: c.title, type: "Konsumsi", user: c.userName, link: "/dashboard/approvals" }))];
+            });
+        }));
+        unsubs.push(subscribeToPendingItemRequests(["pending"], data => {
+            setPendingItems(prev => {
+                const filtered = prev.filter(i => i.type !== "Barang");
+                return [...filtered, ...data.slice(0, 2).map(i => ({ id: i.id, title: i.title, type: "Barang", user: i.userName, link: "/dashboard/approvals" }))];
+            });
+        }));
+        unsubs.push(subscribeToWaitingAsmanVehicles(data => {
+            setPendingItems(prev => {
+                const filtered = prev.filter(i => i.type !== "Kendaraan");
+                return [...filtered, ...data.slice(0, 2).map(v => ({ id: v.id, title: v.event, type: "Kendaraan", user: v.userName, link: "/dashboard/approvals" }))];
+            });
+        }));
+
+        if (userRole === "admin") {
+            unsubs.push(subscribeToIncompleteZoom(data => {
+                // Filter only for online/zoom rooms if needed
+                setIncompleteZoomBookings(data.slice(0, 10));
+            }));
+        }
+    } else if (userRole === "driver") {
+        // Driver specific penugasan
+        unsubs.push(subscribeToAssignedTrips(user.uid, user.email, data => {
+            const active = data.filter(t => t.status === 'pending' || t.status === 'ongoing');
+            setActiveTrips(active);
+            
+            setPendingItems(data.slice(0, 5).map(t => ({
+                id: t.id,
+                title: t.tripId || 'Trip',
+                type: "Penugasan",
+                user: t.status,
+                link: "/dashboard/assigned-trips"
+            })));
+        }));
+    } else {
+        // Regular user activity
+        unsubs.push(subscribeToUserBookings(user.uid, data => {
+            setPendingItems(data.slice(0, 5).map(r => ({
+                id: r.id,
+                title: r.title,
+                type: "Ruangan",
+                user: r.status,
+                link: "/dashboard/my-bookings"
+            })));
+        }));
+    }
+
+    return () => unsubs.forEach(unsub => unsub());
   }, [user, userRole]);
 
   if (loading) return <div style={{ padding: '2rem' }}>Memuat data monitoring...</div>;
@@ -95,6 +132,59 @@ export default function DashboardMonitoring() {
 
   return (
     <div style={{ animation: 'fadeIn 0.5s ease' }}>
+      {/* Driver Specific: Active Trip Monitoring */}
+      {userRole === "driver" && activeTrips.length > 0 && (
+        <div className={styles.card} style={{ marginBottom: '2rem', borderLeft: '4px solid #00A2E9', background: '#F0F9FF', animation: 'slideDown 0.5s ease' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+            <div>
+              <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0369A1', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span style={{ fontSize: '1.2rem' }}>🚕</span> Monitoring Penugasan Perjalanan
+              </h3>
+              <p style={{ fontSize: '0.875rem', color: '#0C4A6E' }}>Terdapat {activeTrips.length} penugasan aktif yang perlu Anda tangani.</p>
+            </div>
+          </div>
+          
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1rem' }}>
+            {activeTrips.map((trip) => (
+              <div key={trip.id} className={styles.actionItem} style={{ background: 'white', flexDirection: 'column', alignItems: 'flex-start', gap: '1rem', padding: '1.25rem' }}>
+                <div className={styles.actionInfo} style={{ width: '100%' }}>
+                  <h4 style={{ color: 'var(--foreground)', fontSize: '1rem', fontWeight: 700, marginBottom: '0.5rem' }}>{trip.destination || "Tujuan Belum Ditentukan"}</h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                    <p style={{ fontSize: '0.8125rem', color: '#64748B', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      📍 <span style={{ fontWeight: 600 }}>{trip.vehicleType} • {trip.plateNumber}</span>
+                    </p>
+                    <p style={{ fontSize: '0.8125rem', color: '#64748B', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      👥 <span>{trip.userName} • {trip.passengers} Penumpang</span>
+                    </p>
+                    <p style={{ fontSize: '0.8125rem', color: '#64748B', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      📅 <span>{trip.pickupTime} • {trip.pickupLocation}</span>
+                    </p>
+                  </div>
+                </div>
+                <Link href="/dashboard/assigned-trips" style={{ width: '100%', textDecoration: 'none' }}>
+                  <button 
+                    style={{ 
+                      width: '100%', 
+                      padding: '0.75rem', 
+                      background: '#00A2E9', 
+                      color: 'white', 
+                      border: 'none', 
+                      borderRadius: 'var(--radius-sm)', 
+                      fontWeight: 700, 
+                      cursor: 'pointer',
+                      fontSize: '0.875rem',
+                      transition: 'background 0.2s'
+                    }}
+                  >
+                    Buka Detail Perjalanan
+                  </button>
+                </Link>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Welcome Section */}
       <div style={{ marginBottom: '2.5rem' }}>
         <h2 style={{ fontSize: '1.75rem', fontWeight: 700, marginBottom: '0.5rem' }}>
@@ -227,7 +317,11 @@ export default function DashboardMonitoring() {
                ["admin", "asman", "koordinator_driver"].includes(userRole || "") ? "Perlu Persetujuan" : "Aktivitas Terbaru"}
             </h3>
             <Link 
-              href={["admin", "asman", "staff_umum", "koordinator_driver"].includes(userRole || "") ? "/dashboard/approvals" : "/dashboard/my-bookings"} 
+              href={
+                userRole === "koordinator_driver" ? "/dashboard/vehicles/approvals" :
+                ["admin", "asman", "staff_umum"].includes(userRole || "") ? "/dashboard/approvals" : 
+                "/dashboard/my-bookings"
+              } 
               style={{ fontSize: '0.75rem', color: 'var(--primary)', fontWeight: 600, textDecoration: 'none' }}
             >
               Lihat Semua

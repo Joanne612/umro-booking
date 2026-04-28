@@ -2,25 +2,35 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Fungsi bantuan untuk cek role
+    // Fungsi bantuan untuk cek role (Safe Version)
     function getUserData() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      let path = /databases/$(database)/documents/users/$(request.auth.uid);
+      return exists(path) ? get(path).data : null;
     }
     
     function isAdmin() {
-      return request.auth != null && getUserData().role == 'admin';
+      let data = getUserData();
+      return request.auth != null && data != null && data.role == 'admin';
     }
 
     function isAsman() {
-      return request.auth != null && getUserData().role == 'asman';
+      let data = getUserData();
+      return request.auth != null && data != null && data.role == 'asman';
     }
 
     function isKoordinatorDriver() {
-      return request.auth != null && getUserData().role == 'koordinator_driver';
+      let data = getUserData();
+      return request.auth != null && data != null && data.role == 'koordinator_driver';
     }
 
     function isStaffUmum() {
-      return request.auth != null && getUserData().role == 'staff_umum';
+      let data = getUserData();
+      return request.auth != null && data != null && data.role == 'staff_umum';
+    }
+    
+    function isDriverRole() {
+      let data = getUserData();
+      return request.auth != null && data != null && data.role == 'driver';
     }
     
     function isViewOnly() {
@@ -89,6 +99,41 @@ service cloud.firestore {
       allow delete: if request.auth != null && (
         isAdmin() || (request.auth.uid == resource.data.userId && resource.data.status == 'pending')
       );
+    }
+
+    // Koleksi Driver Rates: Admin dan Koordinator Driver bisa baca tulis
+    match /driver_rates/{rateId} {
+      allow read, write: if isAdmin() || isKoordinatorDriver();
+    }
+
+    // Koleksi Drivers: Admin dan Koordinator Driver bisa baca tulis, yang lain bisa baca
+    match /drivers/{driverId} {
+      allow read: if request.auth != null;
+      allow write: if isAdmin() || isKoordinatorDriver() || 
+                    (request.auth != null && request.auth.token.email.lower() == resource.data.email.lower());
+    }
+
+    // Koleksi Driver Trips: Admin dan Koordinator Driver bisa baca tulis, Driver terkait juga bisa baca
+    match /driver_trips/{tripId} {
+      allow read: if isAdmin() || isKoordinatorDriver() || isAsman() || (
+        isDriverRole() && (
+          request.auth.uid == resource.data.driverUid || 
+          request.auth.token.email.lower() == resource.data.driverEmail.lower()
+        )
+      );
+      allow update: if isAdmin() || isKoordinatorDriver() || isAsman() || (
+        isDriverRole() && (
+          request.auth.uid == resource.data.driverUid || 
+          request.auth.token.email.lower() == resource.data.driverEmail.lower()
+        )
+      );
+      allow write: if isAdmin() || isKoordinatorDriver() || isAsman();
+    }
+
+    // Koleksi Fleet Vehicles: Admin dan Koordinator Driver bisa baca tulis, yang lain bisa baca
+    match /fleet_vehicles/{vehicleId} {
+      allow read: if request.auth != null;
+      allow write: if isAdmin() || isKoordinatorDriver();
     }
   }
 }

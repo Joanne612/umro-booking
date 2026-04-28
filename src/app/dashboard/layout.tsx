@@ -74,9 +74,43 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           )}
 
           {(userRole === "koordinator_driver" || userRole === "admin") && (
+            <>
+              <Link href="/dashboard/vehicles/drivers" className={`${styles.navItem} ${pathname === "/dashboard/vehicles/drivers" ? styles.active : ""}`}>
+                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+                Data Driver
+              </Link>
+              <Link href="/dashboard/vehicles/fleet" className={`${styles.navItem} ${pathname === "/dashboard/vehicles/fleet" ? styles.active : ""}`}>
+                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
+                Data Armada
+              </Link>
+            </>
+          )}
+
+          {(userRole === "koordinator_driver" || userRole === "admin") && (
+            <Link href="/dashboard/vehicles/trips" className={`${styles.navItem} ${pathname === "/dashboard/vehicles/trips" ? styles.active : ""}`}>
+              <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0" /></svg>
+              Monitoring Perjalanan
+            </Link>
+          )}
+
+          {(userRole === "koordinator_driver" || userRole === "admin") && (
             <Link href="/dashboard/vehicles/approvals" className={`${styles.navItem} ${pathname === "/dashboard/vehicles/approvals" ? styles.active : ""}`}>
               <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
               Persetujuan Driver
+            </Link>
+          )}
+
+          {(userRole === "koordinator_driver" || userRole === "admin") && (
+            <Link href="/dashboard/vehicles/rates" className={`${styles.navItem} ${pathname === "/dashboard/vehicles/rates" ? styles.active : ""}`}>
+              <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2zM10 8.5a.5.5 0 11-1 0 .5.5 0 011 0zm5 5a.5.5 0 11-1 0 .5.5 0 011 0z" /></svg>
+              Tarif SPPD
+            </Link>
+          )}
+
+          {userRole === "driver" && (
+            <Link href="/dashboard/assigned-trips" className={`${styles.navItem} ${pathname === "/dashboard/assigned-trips" ? styles.active : ""}`}>
+              <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>
+              Penugasan Saya
             </Link>
           )}
 
@@ -135,7 +169,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                         pathname === '/dashboard/vehicles' ? 'Peminjaman Kendaraan' :
                           pathname === '/dashboard/item-requests' ? 'Permintaan Barang' :
                             pathname === '/dashboard/vehicles/approvals' ? 'Persetujuan Driver & Armada' :
-                              'Admin Panel'}
+                              pathname === '/dashboard/vehicles/rates' ? 'Tarif Operasional Driver' :
+                                pathname === '/dashboard/vehicles/fleet' ? 'Manajemen Armada' :
+                                  pathname === '/dashboard/assigned-trips' ? 'Penugasan Driver' :
+                                    'Admin Panel'}
             </h1>
           </div>
         </header>

@@ -1,6 +1,6 @@
 import { 
   collection, addDoc, query, where, getDocs, Timestamp, onSnapshot, doc, getDoc, 
-  setDoc, updateDoc, deleteDoc, orderBy, limit, getCountFromServer 
+  setDoc, updateDoc, deleteDoc, orderBy, limit, getCountFromServer, or
 } from "firebase/firestore";
 import { db } from "./config";
 import { User as FirebaseUser } from "firebase/auth";
@@ -18,6 +18,9 @@ export interface BookingData {
   userId: string;
   userName: string;
   createdAt: any;
+  ticketId?: string;
+  meetingType?: string;
+  isHybrid?: boolean;
   status: "active" | "cancelled";
   meetingLink?: string;
   groupId?: string; // Untuk mengelompokkan booking multi-hari
@@ -62,6 +65,7 @@ export interface VehicleBooking {
   destination: string;
   status: "pending" | "waiting_asman" | "approved" | "rejected";
   createdAt: any;
+  ticketId?: string;
   validatedBy?: string;
   validatedByName?: string;
   validationDate?: any;
@@ -70,6 +74,18 @@ export interface VehicleBooking {
   approvalDate?: any;
   rejectReason?: string;
   vehicleNotes?: string;
+  asmanAcknowledge?: boolean;
+  assignedDriverId?: string;
+  assignedDriverName?: string;
+  assignedDriverEmail?: string;
+  assignedDriverUid?: string;
+  assignedDriverPhone?: string;
+  assignedPlateNumber?: string;
+  assignedVehicleType?: string;
+  assignedTripType?: "Perjalanan Dalam Kota" | "Perjalanan Luar Kota";
+  assignedSppd?: string;
+  assignedSppdCost?: number;
+  assignedPersekot?: number;
 }
 
 export interface ItemRequest {
@@ -83,6 +99,7 @@ export interface ItemRequest {
   purchaseLinks: string[];
   status: "pending" | "approved" | "rejected" | "completed";
   createdAt: any;
+  ticketId?: string;
   asmanApprovedBy?: string;
   asmanApprovedByName?: string;
   asmanApprovalDate?: any;
@@ -95,8 +112,76 @@ export interface ItemRequest {
 export interface UserRole {
   uid: string;
   email: string;
-  role: "admin" | "asman" | "koordinator_driver" | "staff_umum" | "user" | "view";
+  role: "admin" | "asman" | "koordinator_driver" | "staff_umum" | "user" | "view" | "driver";
   name: string;
+}
+
+export interface DriverRate {
+  id?: string;
+  rateId?: string;
+  category: string;
+  description: string;
+  tripType: "Perjalanan Dalam Kota" | "Perjalanan Luar Kota";
+  coveredAreas: string[];
+  additionalDays: string; // Misal: "1 Hari"
+  rate: number;
+  lodgingRate?: number;
+  createdAt?: any;
+}
+
+export interface Driver {
+  id?: string;
+  name: string;
+  contact: string;
+  email: string;
+  uid?: string;
+  plateNumber?: string;
+  vehicleType?: string;
+  status?: string;
+  createdAt?: any;
+}
+
+export interface FleetVehicle {
+  id?: string;
+  name: string;
+  plateNumber: string;
+  fuelType: string;
+  createdAt?: any;
+}
+
+export interface DriverTrip {
+  id?: string;
+  tripId?: string; // DT-YYMMDD-RAND
+  driverId: string;
+  driverName: string;
+  driverEmail?: string;
+  driverUid?: string;
+  plateNumber: string;
+  contact: string;
+  vehicleType: string;
+  sppd: string;
+  tripType: "Perjalanan Dalam Kota" | "Perjalanan Luar Kota";
+  persekot: number;
+  status: "pending" | "ongoing" | "completed";
+  createdAt?: any;
+  bookingId?: string;
+  // Detail tambahan dari booking
+  destination?: string;
+  userName?: string;
+  userPhone?: string;
+  pickupTime?: string;
+  pickupLocation?: string;
+  passengers?: number;
+  event?: string;
+  tripOption?: string;
+  startKm?: number;
+  endKm?: number;
+  tolls?: number[];
+  fuelCost?: number;
+  parkingCost?: number;
+  otherCost?: number;
+  sppdCost?: number;
+  totalRealization?: number;
 }
 
 // ================= USER ROLES =================
@@ -106,18 +191,39 @@ export const syncUserToFirestore = async (user: FirebaseUser) => {
   const userRef = doc(db, "users", user.uid);
   const snap = await getDoc(userRef);
   
-  if (!snap.exists()) {
-    // Determine admin if email matches a specific one, otherwise user
-    const role = "user"; 
-    await setDoc(userRef, {
-      uid: user.uid,
-      email: user.email,
-      name: user.displayName || user.email,
-      role: role
-    });
-    return role;
+  if (snap.exists()) {
+    const userData = snap.data();
+    // Re-verify driver link just in case
+    if (user.email && userData.role === "driver") {
+      const driversRef = collection(db, "drivers");
+      const q = query(driversRef, where("email", "==", user.email.toLowerCase()));
+      const dSnap = await getDocs(q);
+      if (!dSnap.empty && !dSnap.docs[0].data().uid) {
+        await updateDoc(dSnap.docs[0].ref, { uid: user.uid });
+      }
+    }
+    return userData.role;
   }
-  return snap.data().role;
+
+  // New user logic...
+  let role: any = "user";
+  if (user.email) {
+    const driversRef = collection(db, "drivers");
+    const q = query(driversRef, where("email", "==", user.email.toLowerCase()));
+    const driverSnap = await getDocs(q);
+    if (!driverSnap.empty) {
+      role = "driver";
+      await updateDoc(driverSnap.docs[0].ref, { uid: user.uid });
+    }
+  }
+
+  await setDoc(userRef, {
+    uid: user.uid,
+    email: user.email,
+    name: user.displayName || user.email,
+    role: role
+  });
+  return role;
 };
 
 export const getUserRole = async (uid: string) => {
@@ -128,6 +234,11 @@ export const getUserRole = async (uid: string) => {
   return "user";
 };
 
+export const deleteUserAccount = async (uid: string) => {
+  if (!db) return;
+  await deleteDoc(doc(db, "users", uid));
+};
+
 // Admin: Get all users for management
 export const getAllUsers = async (): Promise<UserRole[]> => {
   if (!db) return [];
@@ -136,8 +247,15 @@ export const getAllUsers = async (): Promise<UserRole[]> => {
   return snap.docs.map(doc => doc.data() as UserRole);
 };
 
+export const generateTicketId = (prefix: string) => {
+  const date = new Date();
+  const dateStr = date.toISOString().slice(2, 10).replace(/-/g, ''); // YYMMDD
+  const randomStr = Math.random().toString(36).substring(2, 6).toUpperCase();
+  return `${prefix}-${dateStr}-${randomStr}`;
+};
+
 // Admin: Update user role
-export const updateUserRole = async (uid: string, newRole: "admin" | "asman" | "koordinator_driver" | "staff_umum" | "user" | "view") => {
+export const updateUserRole = async (uid: string, newRole: "admin" | "asman" | "koordinator_driver" | "staff_umum" | "user" | "view" | "driver") => {
   if (!db) return;
   const userRef = doc(db, "users", uid);
   await updateDoc(userRef, { role: newRole });
@@ -243,9 +361,11 @@ export const createBooking = async (data: Omit<BookingData, "status">) => {
   }
 
   const bookingsRef = collection(db, "bookings");
+  const ticketId = generateTicketId(data.roomName.toLowerCase().includes('zoom') ? 'ZM' : 'RM');
   const docRef = await addDoc(bookingsRef, {
     ...data,
     status: "active",
+    ticketId,
     createdAt: Timestamp.now()
   });
   return docRef.id;
@@ -272,11 +392,29 @@ export const subscribeToBookingsRange = (startDate: string, endDate: string, cal
   });
 };
 
-export const getUserBookings = async (userId: string): Promise<BookingData[]> => {
+export const subscribeToDrivers = (callback: (data: Driver[]) => void) => {
+  if (!db) return () => {};
+  const q = query(collection(db, "drivers"), orderBy("createdAt", "desc"));
+  return onSnapshot(q, (snap) => {
+    const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Driver));
+    callback(data);
+  });
+};
+
+export const getUserBookings = async (uid: string): Promise<BookingData[]> => {
   if (!db) return [];
-  const q = query(collection(db, "bookings"), where("userId", "==", userId));
+  const q = query(collection(db, "bookings"), where("userId", "==", uid));
   const snap = await getDocs(q);
   return snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as BookingData));
+};
+
+export const subscribeToFleet = (callback: (data: FleetVehicle[]) => void) => {
+  if (!db) return () => {};
+  const q = query(collection(db, "fleet_vehicles"), orderBy("createdAt", "desc"));
+  return onSnapshot(q, (snap) => {
+    const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as FleetVehicle));
+    callback(data);
+  });
 };
 
 export const cancelBooking = async (bookingId: string) => {
@@ -432,9 +570,11 @@ export const createVehicleBooking = async (data: Omit<VehicleBooking, "status" |
   if (!db) throw new Error("Firestore not initialized");
   
   const bookingsRef = collection(db, "vehicle_bookings");
+  const ticketId = generateTicketId('VB');
   const docRef = await addDoc(bookingsRef, {
     ...data,
     status: "pending",
+    ticketId,
     createdAt: Timestamp.now()
   });
   return docRef.id;
@@ -471,12 +611,13 @@ export const subscribeToWaitingAsmanVehicles = (callback: (data: VehicleBooking[
   if (!db) return () => {};
   const q = query(
     collection(db, "vehicle_bookings"), 
-    where("status", "==", "waiting_asman")
+    where("status", "==", "approved"),
+    where("asmanAcknowledge", "==", false)
   );
   
   return onSnapshot(q, (snap) => {
     const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as VehicleBooking));
-    callback(data.sort((a, b) => b.createdAt?.toMillis() - a.createdAt?.toMillis()));
+    callback(data.sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0)));
   });
 };
 
@@ -519,16 +660,96 @@ export const validateVehicleBooking = async (
   bookingId: string, 
   officerId: string, 
   officerName: string,
-  vehicleNotes: string
+  vehicleNotes: string,
+  assignmentData?: {
+    driverId: string;
+    driverName: string;
+    driverEmail: string;
+    driverUid: string;
+    driverPhone: string;
+    plateNumber: string;
+    vehicleType: string;
+    tripType: "Perjalanan Dalam Kota" | "Perjalanan Luar Kota";
+    sppd: string;
+    sppdCost: number;
+    persekot: number;
+  }
+) => {
+  if (!db) return;
+  const bookingRef = doc(db, "vehicle_bookings", bookingId);
+  
+  const updates: any = {
+    status: "approved",
+    validatedBy: officerId,
+    validatedByName: officerName,
+    validationDate: Timestamp.now(),
+    vehicleNotes: vehicleNotes,
+    asmanAcknowledge: false
+  };
+
+  if (assignmentData) {
+    updates.assignedDriverId = assignmentData.driverId;
+    updates.assignedDriverName = assignmentData.driverName;
+    updates.assignedDriverEmail = assignmentData.driverEmail;
+    updates.assignedDriverUid = assignmentData.driverUid;
+    updates.assignedDriverPhone = assignmentData.driverPhone;
+    updates.assignedPlateNumber = assignmentData.plateNumber;
+    updates.assignedVehicleType = assignmentData.vehicleType;
+    updates.assignedTripType = assignmentData.tripType;
+    updates.assignedSppd = assignmentData.sppd;
+    updates.assignedPersekot = assignmentData.persekot;
+    updates.assignedSppdCost = assignmentData.sppdCost || 0;
+  }
+
+  await updateDoc(bookingRef, updates);
+
+  // AUTO CREATE DRIVER TRIP IMMEDIATELY
+  if (assignmentData && assignmentData.driverId) {
+    const tripsRef = collection(db, "driver_trips");
+    const tripId = generateTicketId('DT');
+    const snap = await getDoc(bookingRef);
+    const data = snap.data() as VehicleBooking;
+    
+    await addDoc(tripsRef, {
+      tripId,
+      driverId: assignmentData.driverId,
+      driverName: assignmentData.driverName,
+      driverEmail: assignmentData.driverEmail || "",
+      driverUid: assignmentData.driverUid || "",
+      plateNumber: assignmentData.plateNumber || "",
+      contact: assignmentData.driverPhone || "", 
+      vehicleType: assignmentData.vehicleType || "",
+      sppd: assignmentData.sppd || "-",
+      tripType: assignmentData.tripType || "Perjalanan Dalam Kota",
+      persekot: assignmentData.persekot || 0,
+      sppdCost: assignmentData.sppdCost || 0,
+      status: "pending",
+      createdAt: Timestamp.now(),
+      bookingId: bookingId,
+        event: data.event || "",
+        destination: data.destination || "",
+        userName: data.userName || "",
+        userPhone: data.userPhone || "",
+        pickupTime: data.pickupTime || "",
+        pickupLocation: data.pickupLocation || "",
+        passengers: data.passengers || 0,
+      tripOption: data.tripType === "pp" ? "Pulang Pergi" : "Satu Arah"
+    });
+  }
+};
+
+export const acknowledgeVehicleBooking = async (
+  bookingId: string, 
+  officerId: string, 
+  officerName: string
 ) => {
   if (!db) return;
   const bookingRef = doc(db, "vehicle_bookings", bookingId);
   await updateDoc(bookingRef, {
-    status: "waiting_asman",
-    validatedBy: officerId,
-    validatedByName: officerName,
-    validationDate: Timestamp.now(),
-    vehicleNotes: vehicleNotes
+    asmanAcknowledge: true,
+    acknowledgedBy: officerId,
+    acknowledgedByName: officerName,
+    acknowledgmentDate: Timestamp.now()
   });
 };
 
@@ -550,13 +771,8 @@ export const updateVehicleBookingStatus = async (
     approvalDate: Timestamp.now()
   };
   
-  if (reason) {
-    updates.rejectReason = reason;
-  }
-
-  if (vehicleNotes) {
-    updates.vehicleNotes = vehicleNotes;
-  }
+  if (reason) updates.rejectReason = reason;
+  if (vehicleNotes) updates.vehicleNotes = vehicleNotes;
   
   await updateDoc(bookingRef, updates);
 };
@@ -572,9 +788,11 @@ export const cancelVehicleBooking = async (bookingId: string) => {
 export const createItemRequest = async (data: Omit<ItemRequest, "status" | "createdAt">) => {
   if (!db) throw new Error("Firestore not initialized");
   const requestsRef = collection(db, "item_requests");
+  const ticketId = generateTicketId('IR');
   const docRef = await addDoc(requestsRef, {
     ...data,
     status: "pending",
+    ticketId,
     createdAt: Timestamp.now()
   });
   return docRef.id;
@@ -667,6 +885,33 @@ export const getPendingVehicleBookings = async (): Promise<VehicleBooking[]> => 
   return snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as VehicleBooking));
 };
 
+export const subscribeToUserBookings = (uid: string, callback: (data: BookingData[]) => void) => {
+  if (!db) return () => {};
+  const q = query(collection(db, "bookings"), where("userId", "==", uid));
+  return onSnapshot(q, (snap) => {
+    const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as BookingData));
+    callback(data);
+  });
+};
+
+export const subscribeToUserVehicles = (uid: string, callback: (data: VehicleBooking[]) => void) => {
+  if (!db) return () => {};
+  const q = query(collection(db, "vehicle_bookings"), where("userId", "==", uid));
+  return onSnapshot(q, (snap) => {
+    const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as VehicleBooking));
+    callback(data);
+  });
+};
+
+export const subscribeToUserItems = (uid: string, callback: (data: ItemRequest[]) => void) => {
+  if (!db) return () => {};
+  const q = query(collection(db, "item_requests"), where("userId", "==", uid));
+  return onSnapshot(q, (snap) => {
+    const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as ItemRequest));
+    callback(data);
+  });
+};
+
 export const getWaitingAsmanVehicleBookings = async (): Promise<VehicleBooking[]> => {
   if (!db) return [];
   const q = query(
@@ -679,6 +924,56 @@ export const getWaitingAsmanVehicleBookings = async (): Promise<VehicleBooking[]
 
 // ================= DASHBOARD STATS =================
 
+export const subscribeToPendingConsumption = (callback: (data: BookingData[]) => void) => {
+  if (!db) return () => {};
+  const q = query(
+    collection(db, "bookings"), 
+    where("status", "==", "pending")
+  );
+  return onSnapshot(q, (snap) => {
+    const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as BookingData));
+    callback(data);
+  });
+};
+
+export const subscribeToApprovedConsumption = (callback: (data: BookingData[]) => void) => {
+  if (!db) return () => {};
+  const q = query(
+    collection(db, "bookings"), 
+    where("status", "==", "approved")
+  );
+  return onSnapshot(q, (snap) => {
+    const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as BookingData));
+    callback(data);
+  });
+};
+
+export const subscribeToPendingItemRequests = (status: string[], callback: (data: ItemRequest[]) => void) => {
+  if (!db) return () => {};
+  const q = query(
+    collection(db, "item_requests"), 
+    where("status", "in", status)
+  );
+  return onSnapshot(q, (snap) => {
+    const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as ItemRequest));
+    callback(data);
+  });
+};
+
+export const subscribeToIncompleteZoom = (callback: (data: BookingData[]) => void) => {
+  if (!db) return () => {};
+  const q = query(
+    collection(db, "bookings"), 
+    where("meetingLink", "==", ""),
+    where("status", "==", "active")
+  );
+  return onSnapshot(q, (snap) => {
+    // Filter online rooms on client side for simplicity or match query
+    const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as BookingData));
+    callback(data);
+  });
+};
+
 export const getDashboardStats = async (userId: string, userRole: string) => {
   if (!db) return null;
 
@@ -687,6 +982,9 @@ export const getDashboardStats = async (userId: string, userRole: string) => {
     const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
     const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
 
+    const canSeeGlobalCons = ["admin", "asman", "staff_umum"].includes(userRole);
+    const canSeeGlobalItems = ["admin", "asman", "staff_umum"].includes(userRole);
+    const canSeeGlobalVehicles = ["admin", "asman", "koordinator_driver"].includes(userRole);
     const isAdminOrAsman = ["admin", "asman", "staff_umum", "koordinator_driver"].includes(userRole);
 
     // 1. Get bookings (for Room Usage Stats and Personal Stats)
@@ -708,7 +1006,7 @@ export const getDashboardStats = async (userId: string, userRole: string) => {
     const isExecutionRole = userRole === "staff_umum";
     
     // Consumption count
-    if (isAdminOrAsman) {
+    if (canSeeGlobalCons) {
       const statusToFetch = isExecutionRole ? "approved" : "pending";
       const q = query(
         collection(db, "bookings"),
@@ -733,7 +1031,7 @@ export const getDashboardStats = async (userId: string, userRole: string) => {
     // Items count
     let pendingItemsCount = 0;
     const itemsRef = collection(db, "item_requests");
-    if (isAdminOrAsman) {
+    if (canSeeGlobalItems) {
       const statusToFetch = isExecutionRole ? "approved" : "pending";
       const q = query(itemsRef, where("status", "==", statusToFetch));
       const countSnap = await getCountFromServer(q);
@@ -747,12 +1045,12 @@ export const getDashboardStats = async (userId: string, userRole: string) => {
     // Vehicles count
     let pendingVehiclesCount = 0;
     const vehiclesRef = collection(db, "vehicle_bookings");
-    if (isAdminOrAsman) {
+    if (canSeeGlobalVehicles) {
       let q;
-      if (userRole === "koordinator_driver") {
+      if (userRole === "koordinator_driver" || userRole === "admin") {
         q = query(vehiclesRef, where("status", "==", "pending"));
-      } else if (userRole === "asman" || userRole === "admin") {
-        q = query(vehiclesRef, where("status", "==", "waiting_asman"));
+      } else if (userRole === "asman") {
+        q = query(vehiclesRef, where("status", "==", "approved"), where("asmanAcknowledge", "==", false));
       }
       
       if (q) {
@@ -862,4 +1160,194 @@ export const getMyRecentActivity = async (userId: string) => {
     console.error("Error fetching recent activity:", error);
     return [];
   }
+};
+
+// ================= DRIVER RATES =================
+
+export const getDriverRates = async (): Promise<DriverRate[]> => {
+  if (!db) return [];
+  try {
+    const q = query(collection(db, "driver_rates"), orderBy("createdAt", "asc"));
+    const snap = await getDocs(q);
+    return snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as DriverRate));
+  } catch (error) {
+    console.error("Error fetching driver rates:", error);
+    return [];
+  }
+};
+
+export const addDriverRate = async (rate: Omit<DriverRate, "id" | "createdAt" | "rateId">) => {
+  if (!db) throw new Error("Firestore not initialized");
+  const ratesRef = collection(db, "driver_rates");
+  const rateId = generateTicketId('RT');
+  await addDoc(ratesRef, {
+    ...rate,
+    rateId,
+    createdAt: Timestamp.now()
+  });
+};
+
+export const updateDriverRate = async (id: string, rate: Partial<DriverRate>) => {
+  if (!db) throw new Error("Firestore not initialized");
+  const rateRef = doc(db, "driver_rates", id);
+  await updateDoc(rateRef, rate);
+};
+
+export const deleteDriverRate = async (id: string) => {
+  if (!db) throw new Error("Firestore not initialized");
+  const rateRef = doc(db, "driver_rates", id);
+  await deleteDoc(rateRef);
+};
+
+// ================= DRIVER MANAGEMENT =================
+
+export const getDrivers = async (): Promise<Driver[]> => {
+  if (!db) return [];
+  try {
+    const q = query(collection(db, "drivers"), orderBy("name", "asc"));
+    const snap = await getDocs(q);
+    return snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Driver));
+  } catch (error) {
+    console.error("Error fetching drivers:", error);
+    return [];
+  }
+};
+
+export const getDriverByEmail = async (email: string): Promise<Driver | null> => {
+  if (!db || !email) return null;
+  const q = query(collection(db, "drivers"), where("email", "==", email.toLowerCase()));
+  const snap = await getDocs(q);
+  if (snap.empty) return null;
+  return { id: snap.docs[0].id, ...snap.docs[0].data() } as Driver;
+};
+
+export const subscribeToAssignedTrips = (uid: string, email: string | null, callback: (data: DriverTrip[]) => void) => {
+  if (!db || !uid) return () => {};
+  
+  const q = email ? 
+    query(
+      collection(db, "driver_trips"), 
+      or(
+        where("driverUid", "==", uid),
+        where("driverEmail", "==", email.toLowerCase())
+      )
+    ) :
+    query(
+      collection(db, "driver_trips"), 
+      where("driverUid", "==", uid)
+    );
+    
+  return onSnapshot(q, (snap) => {
+    const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as DriverTrip));
+    // Client-side sorting by createdAt desc
+    const sorted = data.sort((a, b) => {
+      const timeA = a.createdAt?.toMillis ? a.createdAt.toMillis() : (a.createdAt?.seconds ? a.createdAt.seconds * 1000 : 0);
+      const timeB = b.createdAt?.toMillis ? b.createdAt.toMillis() : (b.createdAt?.seconds ? b.createdAt.seconds * 1000 : 0);
+      return timeB - timeA;
+    });
+    callback(sorted);
+  });
+};
+
+export const addDriver = async (driver: Omit<Driver, "id" | "createdAt">) => {
+  if (!db) throw new Error("Firestore not initialized");
+  const driversRef = collection(db, "drivers");
+  await addDoc(driversRef, {
+    ...driver,
+    createdAt: Timestamp.now()
+  });
+};
+
+export const updateDriver = async (id: string, driver: Partial<Driver>) => {
+  if (!db) throw new Error("Firestore not initialized");
+  const driverRef = doc(db, "drivers", id);
+  await updateDoc(driverRef, driver);
+};
+
+export const deleteDriver = async (id: string) => {
+  if (!db) throw new Error("Firestore not initialized");
+  const driverRef = doc(db, "drivers", id);
+  await deleteDoc(driverRef);
+};
+
+// ================= DRIVER TRIPS =================
+
+export const getDriverTrips = async (): Promise<DriverTrip[]> => {
+  if (!db) return [];
+  try {
+    const q = query(collection(db, "driver_trips"), orderBy("createdAt", "desc"));
+    const snap = await getDocs(q);
+    return snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as DriverTrip));
+  } catch (error) {
+    console.error("Error fetching driver trips:", error);
+    return [];
+  }
+};
+
+export const subscribeToDriverTrips = (callback: (data: DriverTrip[]) => void) => {
+  if (!db) return () => {};
+  const q = query(collection(db, "driver_trips"), orderBy("createdAt", "desc"));
+  
+  return onSnapshot(q, (snap) => {
+    const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as DriverTrip));
+    callback(data);
+  });
+};
+
+export const addDriverTrip = async (trip: Omit<DriverTrip, "id" | "createdAt" | "tripId">) => {
+  if (!db) throw new Error("Firestore not initialized");
+  const tripsRef = collection(db, "driver_trips");
+  const tripId = generateTicketId('DT');
+  await addDoc(tripsRef, {
+    ...trip,
+    tripId,
+    createdAt: Timestamp.now()
+  });
+};
+
+export const updateDriverTrip = async (id: string, trip: Partial<DriverTrip>) => {
+  if (!db) throw new Error("Firestore not initialized");
+  const tripRef = doc(db, "driver_trips", id);
+  await updateDoc(tripRef, trip);
+};
+
+export const deleteDriverTrip = async (id: string) => {
+  if (!db) throw new Error("Firestore not initialized");
+  const tripRef = doc(db, "driver_trips", id);
+  await deleteDoc(tripRef);
+};
+
+// ================= FLEET MANAGEMENT =================
+
+export const getFleetVehicles = async (): Promise<FleetVehicle[]> => {
+  if (!db) return [];
+  try {
+    const q = query(collection(db, "fleet_vehicles"), orderBy("name", "asc"));
+    const snap = await getDocs(q);
+    return snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as FleetVehicle));
+  } catch (error) {
+    console.error("Error fetching fleet vehicles:", error);
+    return [];
+  }
+};
+
+export const addFleetVehicle = async (vehicle: Omit<FleetVehicle, "id" | "createdAt">) => {
+  if (!db) throw new Error("Firestore not initialized");
+  const fleetRef = collection(db, "fleet_vehicles");
+  await addDoc(fleetRef, {
+    ...vehicle,
+    createdAt: Timestamp.now()
+  });
+};
+
+export const updateFleetVehicle = async (id: string, vehicle: Partial<FleetVehicle>) => {
+  if (!db) throw new Error("Firestore not initialized");
+  const vehicleRef = doc(db, "fleet_vehicles", id);
+  await updateDoc(vehicleRef, vehicle);
+};
+
+export const deleteFleetVehicle = async (id: string) => {
+  if (!db) throw new Error("Firestore not initialized");
+  const vehicleRef = doc(db, "fleet_vehicles", id);
+  await deleteDoc(vehicleRef);
 };

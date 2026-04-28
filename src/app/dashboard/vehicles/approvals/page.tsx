@@ -9,7 +9,13 @@ import {
   validateVehicleBooking,
   updateVehicleBookingStatus,
   updateVehicleNotes,
-  VehicleBooking
+  getDrivers,
+  getFleetVehicles,
+  getDriverRates,
+  VehicleBooking,
+  Driver,
+  FleetVehicle,
+  DriverRate
 } from "@/lib/firebase/firestore";
 import VehicleApprovalCard from "@/components/VehicleApprovalCard";
 import styles from "../../dashboard.module.css";
@@ -24,9 +30,24 @@ export default function VehicleApprovalsPage() {
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
+  // Data for Selection
+  const [drivers, setDrivers] = useState<Driver[]>([]);
+  const [fleet, setFleet] = useState<FleetVehicle[]>([]);
+
   // Approval State
   const [approvingBooking, setApprovingBooking] = useState<VehicleBooking | null>(null);
   const [vehicleNotes, setVehicleNotes] = useState("");
+  const [selectedDriverId, setSelectedDriverId] = useState("");
+  const [selectedVehicleId, setSelectedVehicleId] = useState("");
+  
+  // Trip Details State
+  const [rates, setRates] = useState<DriverRate[]>([]);
+  const [tripType, setTripType] = useState<"Perjalanan Dalam Kota" | "Perjalanan Luar Kota">("Perjalanan Dalam Kota");
+  const [sppd, setSppd] = useState("");
+  const [sppdCost, setSppdCost] = useState(0);
+  const [displaySppdCost, setDisplaySppdCost] = useState("0");
+  const [persekot, setPersekot] = useState(0);
+  const [displayPersekot, setDisplayPersekot] = useState("0");
 
   // Edit State
   const [editingBooking, setEditingBooking] = useState<VehicleBooking | null>(null);
@@ -35,6 +56,31 @@ export default function VehicleApprovalsPage() {
   // Rejection State
   const [rejectingBooking, setRejectingBooking] = useState<VehicleBooking | null>(null);
   const [rejectReason, setRejectReason] = useState("");
+
+  useEffect(() => {
+    const loadSelectionData = async () => {
+      const [driversData, fleetData, ratesData] = await Promise.all([
+        getDrivers(),
+        getFleetVehicles(),
+        getDriverRates()
+      ]);
+      setDrivers(driversData);
+      setFleet(fleetData);
+      setRates(ratesData);
+    };
+    loadSelectionData();
+  }, []);
+
+  const handlePersekotChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const rawValue = e.target.value.replace(/\D/g, "");
+    const numericValue = rawValue === "" ? 0 : parseInt(rawValue);
+    setPersekot(numericValue);
+    setDisplayPersekot(numericValue.toLocaleString('id-ID'));
+  };
+
+  const filteredRates = useMemo(() => {
+    return rates.filter(r => r.tripType === "Perjalanan Luar Kota");
+  }, [rates]);
 
   useEffect(() => {
     setLoading(true);
@@ -63,6 +109,43 @@ export default function VehicleApprovalsPage() {
       b.event?.toLowerCase().includes(searchQuery.toLowerCase())
     );
   }, [bookings, searchQuery]);
+  
+  const handleSelectionChange = (driverId: string, vehicleId: string) => {
+    setSelectedDriverId(driverId);
+    setSelectedVehicleId(vehicleId);
+
+    const driver = drivers.find(d => d.id === driverId);
+    const vehicle = fleet.find(v => v.id === vehicleId);
+
+    if (driver && vehicle) {
+      setVehicleNotes(`${vehicle.name} (${vehicle.plateNumber})\nDriver: ${driver.name} (${driver.contact})`);
+    } else if (driver) {
+      setVehicleNotes(`Driver: ${driver.name} (${driver.contact})`);
+    } else if (vehicle) {
+      setVehicleNotes(`${vehicle.name} (${vehicle.plateNumber})`);
+    }
+  };
+
+  const handleSppdChange = (val: string) => {
+    setSppd(val);
+    if (!val) {
+      setSppdCost(0);
+      setDisplaySppdCost("0");
+      return;
+    }
+    // Find rate
+    const selectedRate = rates.find(r => `${r.category} - ${r.description}` === val);
+    if (selectedRate) {
+      setSppdCost(selectedRate.rate);
+      setDisplaySppdCost(selectedRate.rate.toLocaleString('id-ID'));
+    }
+  };
+
+  const handleDisplaySppdCostChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value.replace(/[^0-9]/g, "");
+    setSppdCost(Number(val) || 0);
+    setDisplaySppdCost(val ? Number(val).toLocaleString('id-ID') : "");
+  };
 
   const handleApproveSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -72,15 +155,43 @@ export default function VehicleApprovalsPage() {
 
     setProcessingId(approvingBooking.id);
     try {
+      // Find specialized data
+      const driver = drivers.find(d => d.id === selectedDriverId);
+      const vehicle = fleet.find(v => v.id === selectedVehicleId);
+      
+      const assignmentData = driver && vehicle ? {
+        driverId: driver.id!,
+        driverName: driver.name,
+        driverEmail: driver.email || "",
+        driverUid: driver.uid || "",
+        driverPhone: driver.contact || "",
+        plateNumber: vehicle.plateNumber,
+        vehicleType: vehicle.name,
+        tripType: tripType,
+        sppd: sppd,
+        sppdCost: sppdCost,
+        persekot: persekot
+      } : undefined;
+
       await validateVehicleBooking(
         approvingBooking.id,
         user.uid,
         user.displayName || user.email || "Koordinator Driver",
-        vehicleNotes
+        vehicleNotes,
+        assignmentData
       );
+
       showToast("Pengajuan berhasil divalidasi dan diteruskan ke Asman Umum.", "success");
       setApprovingBooking(null);
       setVehicleNotes("");
+      setSelectedDriverId("");
+      setSelectedVehicleId("");
+      setSppd("");
+      setSppdCost(0);
+      setDisplaySppdCost("0");
+      setPersekot(0);
+      setDisplayPersekot("0");
+      setTripType("Perjalanan Dalam Kota");
     } catch (error: any) {
       showToast("Gagal memproses: " + error.message, "error");
     } finally {
@@ -228,14 +339,117 @@ export default function VehicleApprovalsPage() {
       {/* APPROVAL MODAL */}
       {approvingBooking && (
         <div className={styles.modalOverlay} style={{ zIndex: 3000 }}>
-          <div className={styles.modalContent} style={{ maxWidth: '450px' }}>
-            <h3 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '1rem' }}>Validasi & Teruskan</h3>
-            <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginBottom: '1.5rem' }}>Masukkan detail kendaraan (Tipe Mobil, No. Plat) dan Driver.</p>
-            <form onSubmit={handleApproveSubmit}>
-              <textarea required autoFocus value={vehicleNotes} onChange={(e) => setVehicleNotes(e.target.value)} placeholder="Cth: Toyota Avanza (B 1234 ABC), Driver: Pak Budi (0812...)" style={{ width: '100%', padding: '0.75rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', minHeight: '120px', fontFamily: 'inherit', marginBottom: '1.5rem' }} />
-              <div style={{ display: 'flex', gap: '1rem' }}>
-                <button type="button" onClick={() => { setApprovingBooking(null); setVehicleNotes(""); }} style={{ flex: 1, padding: '0.75rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', background: 'white', fontWeight: 600, cursor: 'pointer' }}>Batal</button>
-                <button type="submit" disabled={!!processingId} style={{ flex: 1, padding: '0.75rem', borderRadius: 'var(--radius-md)', border: 'none', background: '#10B981', color: 'white', fontWeight: 600, cursor: 'pointer' }}>{processingId === approvingBooking.id ? 'Memproses...' : '✓ Validasi & Teruskan'}</button>
+          <div className={styles.modalContent} style={{ maxWidth: '480px', borderRadius: '24px', maxHeight: '90vh', overflowY: 'auto' }}>
+            <h3 style={{ fontSize: '1.25rem', fontWeight: 800, marginBottom: '0.5rem', color: '#0F172A' }}>Validasi & Teruskan</h3>
+            <p style={{ fontSize: '0.875rem', color: '#64748B', marginBottom: '1.5rem' }}>Pilih armada dan driver untuk penugasan ini.</p>
+            
+            <form onSubmit={handleApproveSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div className={styles.formGroup}>
+                  <label className={styles.formLabel}>Pilih Armada</label>
+                  <select 
+                    value={selectedVehicleId} 
+                    onChange={(e) => handleSelectionChange(selectedDriverId, e.target.value)}
+                    className={styles.selectField}
+                  >
+                    <option value="">-- Pilih Armada --</option>
+                    {fleet.map(v => (
+                      <option key={v.id} value={v.id}>{v.name} ({v.plateNumber})</option>
+                    ))}
+                  </select>
+                </div>
+                <div className={styles.formGroup}>
+                  <label className={styles.formLabel}>Pilih Driver</label>
+                  <select 
+                    value={selectedDriverId} 
+                    onChange={(e) => handleSelectionChange(e.target.value, selectedVehicleId)}
+                    className={styles.selectField}
+                  >
+                    <option value="">-- Pilih Driver --</option>
+                    {drivers.map(d => (
+                      <option key={d.id} value={d.id}>{d.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className={styles.formGroup}>
+                <label className={styles.formLabel}>Informasi Penugasan (Preview)</label>
+                <textarea 
+                  required 
+                  value={vehicleNotes} 
+                  onChange={(e) => setVehicleNotes(e.target.value)} 
+                  placeholder="Cth: Toyota Avanza (B 1234 ABC), Driver: Pak Budi" 
+                  style={{ width: '100%', padding: '0.75rem', borderRadius: '12px', border: '1px solid #E2E8F0', minHeight: '80px', fontSize: '0.9rem' }} 
+                />
+              </div>
+
+              <div className={styles.formGroup}>
+                <label className={styles.formLabel}>Jenis Perjalanan</label>
+                <select
+                  value={tripType}
+                  onChange={e => setTripType(e.target.value as any)}
+                  className={styles.selectField}
+                >
+                  <option value="Perjalanan Dalam Kota">Perjalanan Dalam Kota</option>
+                  <option value="Perjalanan Luar Kota">Perjalanan Luar Kota</option>
+                </select>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div className={styles.formGroup}>
+                  <label className={styles.formLabel} style={{ color: tripType === "Perjalanan Dalam Kota" ? '#94a3b8' : 'inherit' }}>
+                    SPPD {tripType === "Perjalanan Dalam Kota" ? "(Hanya Luar Kota)" : ""}
+                  </label>
+                  <select
+                    disabled={tripType === "Perjalanan Dalam Kota"}
+                    value={sppd}
+                    onChange={e => handleSppdChange(e.target.value)}
+                    className={styles.selectField}
+                  >
+                    <option value="">-- Pilih Kategori --</option>
+                    {filteredRates.map(rate => (
+                      <option key={rate.id} value={`${rate.category} - ${rate.description}`}>
+                        {rate.category}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className={styles.formGroup}>
+                  <label className={styles.formLabel}>Nominal SPPD</label>
+                  <div style={{ position: 'relative' }}>
+                    <span style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', fontWeight: 600, color: 'var(--text-muted)', fontSize: '0.8rem' }}>Rp</span>
+                    <input
+                      type="text"
+                      readOnly
+                      value={displaySppdCost}
+                      className={styles.textInput}
+                      style={{ paddingLeft: '2.5rem', background: '#F8FAFC', color: 'var(--primary)' }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className={styles.formGroup}>
+                <label className={styles.formLabel}>Uang Persekot (Opsional)</label>
+                <div style={{ position: 'relative' }}>
+                  <span style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', fontWeight: 600, color: 'var(--text-muted)', fontSize: '0.8rem' }}>Rp</span>
+                  <input
+                    type="text"
+                    value={displayPersekot}
+                    onChange={handlePersekotChange}
+                    className={styles.textInput}
+                    style={{ paddingLeft: '2.5rem' }}
+                    placeholder="0"
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '1rem', marginTop: '0.5rem' }}>
+                <button type="button" onClick={() => { setApprovingBooking(null); setVehicleNotes(""); setSelectedDriverId(""); setSelectedVehicleId(""); }} style={{ flex: 1, padding: '0.8rem', borderRadius: '12px', border: '1px solid #E2E8F0', background: 'white', fontWeight: 700, cursor: 'pointer' }}>Batal</button>
+                <button type="submit" disabled={!!processingId} style={{ flex: 1.5, padding: '0.8rem', borderRadius: '12px', border: 'none', background: '#10B981', color: 'white', fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 12px rgba(16, 185, 129, 0.2)' }}>
+                  {processingId === approvingBooking.id ? 'Memproses...' : '✓ Validasi & Teruskan'}
+                </button>
               </div>
             </form>
           </div>

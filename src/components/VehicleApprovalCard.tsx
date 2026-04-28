@@ -12,38 +12,56 @@ interface VehicleApprovalCardProps {
   processingId?: string | null;
 }
 
-export default function VehicleApprovalCard({ 
-  booking, 
-  viewMode, 
-  userRole, 
-  onApprove, 
-  onReject, 
+export default function VehicleApprovalCard({
+  booking,
+  viewMode,
+  userRole,
+  onApprove,
+  onReject,
   onEdit,
-  processingId 
+  processingId
 }: VehicleApprovalCardProps) {
-  
+
   const isProcessing = processingId === booking.id;
   const isHistory = viewMode === "history";
 
   return (
-    <div style={{ 
-      background: 'white', 
-      borderRadius: 'var(--radius-lg)', 
-      border: '1px solid var(--border)', 
-      overflow: 'hidden', 
+    <div style={{
+      background: 'white',
+      borderRadius: 'var(--radius-lg)',
+      border: '1px solid var(--border)',
+      overflow: 'hidden',
       boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)',
       opacity: isProcessing ? 0.7 : 1
     }}>
       {/* Header */}
-      <div style={{ 
-        padding: '1.25rem', 
-        background: isHistory ? '#F8FAFC' : (userRole === 'koordinator_driver' ? 'rgba(0,162,233,0.03)' : 'rgba(16,185,129,0.02)'), 
-        borderBottom: '1px solid var(--border)', 
-        display: 'flex', 
-        justifyContent: 'space-between', 
-        alignItems: 'center' 
+      <div style={{
+        padding: '1.25rem',
+        background: isHistory ? '#F8FAFC' : (userRole === 'koordinator_driver' ? 'rgba(0,162,233,0.03)' : 'rgba(16,185,129,0.02)'),
+        borderBottom: '1px solid var(--border)',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center'
       }}>
         <div>
+          {booking.ticketId && (
+            <div style={{
+              fontSize: '0.7rem',
+              fontFamily: 'monospace',
+              color: '#475569',
+              marginBottom: '0.6rem',
+              fontWeight: 700,
+              background: '#EEF2FF',
+              padding: '0.2rem 0.5rem',
+              borderRadius: '4px',
+              border: '1px dashed #C7D2FE',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.3rem'
+            }}>
+              <span>🎫</span> #{booking.ticketId}
+            </div>
+          )}
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
             <span style={{ fontSize: '0.7rem', fontWeight: 800, color: userRole === 'koordinator_driver' ? 'var(--primary)' : '#10B981', textTransform: 'uppercase' }}>
               {booking.validatedByName ? `Divalidasi: ${booking.validatedByName}` : 'Tujuan Ke:'}
@@ -69,9 +87,9 @@ export default function VehicleApprovalCard({
         </div>
         <div style={{ textAlign: 'right' }}>
           <div style={{ fontWeight: 700 }}>
-            📅 {booking.endDate && booking.endDate !== booking.date 
-                ? `${new Date(booking.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })} - ${new Date(booking.endDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}`
-                : new Date(booking.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
+            📅 {booking.endDate && booking.endDate !== booking.date
+              ? `${new Date(booking.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })} - ${new Date(booking.endDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}`
+              : new Date(booking.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
             }
           </div>
           <div style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>Durasi: {booking.duration} Hari</div>
@@ -95,7 +113,7 @@ export default function VehicleApprovalCard({
           <div style={{ fontSize: '0.875rem' }}>🔁 Tipe: <b>{booking.tripType === 'pp' ? 'Pulang Pergi' : 'Sekali Jalan'}</b></div>
           <div style={{ fontSize: '0.875rem' }}>👥 Penumpang: <b>{booking.passengers} Orang</b></div>
         </div>
-        
+
         <div style={{ gridColumn: '1 / -1' }}>
           <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '0.5rem' }}>
             {(!isHistory && userRole === 'koordinator_driver') ? 'ACARA / KEGIATAN' : 'INFO ARMADA & DRIVER'}
@@ -120,7 +138,7 @@ export default function VehicleApprovalCard({
         </div>
 
         {isHistory && (userRole === 'admin' || userRole === 'asman') && (
-           <div style={{ gridColumn: '1 / -1' }}>
+          <div style={{ gridColumn: '1 / -1' }}>
             <label style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)' }}>ACARA / KEGIATAN</label>
             <div style={{ padding: '0.75rem', background: '#F8FAFC', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', fontSize: '0.8125rem' }}>
               {booking.event}
@@ -144,7 +162,7 @@ export default function VehicleApprovalCard({
             </div>
           ) : (
             <>
-              <button 
+              <button
                 onClick={() => onReject?.(booking)}
                 disabled={!!processingId}
                 className="btn-secondary"
@@ -152,13 +170,13 @@ export default function VehicleApprovalCard({
               >
                 Tolak
               </button>
-              <button 
+              <button
                 onClick={() => onApprove?.(booking.id!)}
                 disabled={!!processingId}
                 className="btn-primary"
                 style={{ padding: '0.6rem 2rem', background: userRole === 'koordinator_driver' ? '#0ea5e9' : '#10B981' }}
               >
-                {userRole === 'koordinator_driver' ? '✓ Validasi & Teruskan' : '✓ Setujui Pinjaman'}
+                {userRole === 'koordinator_driver' ? '✓ Validasi & Setujui' : '✓ Setujui'}
               </button>
             </>
           )}

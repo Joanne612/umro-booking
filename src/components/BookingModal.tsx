@@ -26,13 +26,13 @@ const generateTimeSlots = () => {
 };
 const timeSlots = generateTimeSlots();
 
-export default function BookingModal({ 
-  isOpen, 
-  onClose, 
-  rooms, 
-  selectedDate, 
+export default function BookingModal({
+  isOpen,
+  onClose,
+  rooms,
+  selectedDate,
   initialTime,
-  editData 
+  editData
 }: BookingModalProps) {
   const { user } = useAuth();
   const { showToast } = useToast();
@@ -45,6 +45,8 @@ export default function BookingModal({
     title: "",
     division: "",
     participants: 1,
+    meetingType: "Internal Fungsi",
+    isHybrid: false,
     startTime: initialTime || "09:00",
     endTime: "10:00",
     consumption: {
@@ -69,6 +71,8 @@ export default function BookingModal({
         title: editData.title,
         division: editData.division,
         participants: editData.participants,
+        meetingType: editData.meetingType || "Internal Fungsi",
+        isHybrid: editData.isHybrid || false,
         startTime: editData.startTime,
         endTime: editData.endTime,
         consumption: {
@@ -92,6 +96,8 @@ export default function BookingModal({
         title: "",
         division: "",
         participants: 1,
+        meetingType: "Internal Fungsi",
+        isHybrid: false,
         startTime: start,
         endTime: end,
         consumption: {
@@ -159,12 +165,12 @@ export default function BookingModal({
       // 2. Process create/update
       if (editData?.id) {
         const groupId = editData.groupId || (isMultiDay ? `group_${user.uid}_${Date.now()}` : undefined);
-        
+
         // If it's a group, we need to sync others
         if (groupId) {
           const groupBookings = await getBookingsByGroupId(groupId);
           const newDates = dates; // From getDatesInRange(formData.date, formData.endDate)
-          
+
           // Identify existing dates in group (including original single booking if converting)
           let effectiveGroupBookings = groupBookings;
           if (!editData.groupId && editData.id) {
@@ -181,6 +187,8 @@ export default function BookingModal({
               title: formData.title,
               division: formData.division,
               participants: Number(formData.participants),
+              meetingType: formData.meetingType,
+              isHybrid: formData.isHybrid,
               date: date,
               startTime: formData.startTime,
               endTime: formData.endTime,
@@ -216,7 +224,7 @@ export default function BookingModal({
               await deleteBooking(b.id);
             }
           }
-          
+
           showToast("Rangkaian booking berhasil diperbarui!", "success");
         } else {
           // Standard single edit (no groupId and not changing to range)
@@ -226,6 +234,8 @@ export default function BookingModal({
             title: formData.title,
             division: formData.division,
             participants: Number(formData.participants),
+            meetingType: formData.meetingType,
+            isHybrid: formData.isHybrid,
             date: formData.date,
             startTime: formData.startTime,
             endTime: formData.endTime,
@@ -245,7 +255,7 @@ export default function BookingModal({
         }
       } else {
         const groupId = isMultiDay ? `group_${user.uid}_${Date.now()}` : undefined;
-        
+
         for (const date of dates) {
           const bookingPayload = {
             roomId: formData.roomId,
@@ -253,6 +263,8 @@ export default function BookingModal({
             title: formData.title,
             division: formData.division,
             participants: Number(formData.participants),
+            meetingType: formData.meetingType,
+            isHybrid: formData.isHybrid,
             date: date,
             startTime: formData.startTime,
             endTime: formData.endTime,
@@ -272,11 +284,11 @@ export default function BookingModal({
         }
 
         showToast(
-          isMultiDay 
+          isMultiDay
             ? `Berhasil membooking ${dates.length} hari!`
-            : (formData.consumption.requested 
-                ? "Booking berhasil! Permintaan konsumsi sedang menunggu persetujuan Asman Umum." 
-                : "Booking berhasil dibuat!"), 
+            : (formData.consumption.requested
+              ? "Booking berhasil! Permintaan konsumsi sedang menunggu persetujuan Asman Umum."
+              : "Booking berhasil dibuat!"),
           "success"
         );
       }
@@ -309,23 +321,23 @@ export default function BookingModal({
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
             <div className={styles.formGroup}>
               <label className={styles.formLabel}>Tanggal Mulai</label>
-              <input 
-                type="date" 
-                required 
-                value={formData.date} 
-                onChange={e => setFormData({...formData, date: e.target.value})} 
-                className={styles.textInput} 
+              <input
+                type="date"
+                required
+                value={formData.date}
+                onChange={e => setFormData({ ...formData, date: e.target.value })}
+                className={styles.textInput}
               />
             </div>
             <div className={styles.formGroup}>
               <label className={styles.formLabel}>Sampai Tanggal</label>
-              <input 
-                type="date" 
-                required 
+              <input
+                type="date"
+                required
                 min={formData.date}
-                value={formData.endDate} 
-                onChange={e => setFormData({...formData, endDate: e.target.value})} 
-                className={styles.textInput} 
+                value={formData.endDate}
+                onChange={e => setFormData({ ...formData, endDate: e.target.value })}
+                className={styles.textInput}
               />
             </div>
           </div>
@@ -360,27 +372,55 @@ export default function BookingModal({
           </div>
 
           <div className={styles.formGroup}>
+            <label className={styles.formLabel}>Jenis Meeting</label>
+            <select
+              required
+              value={formData.meetingType}
+              onChange={(e) => setFormData({ ...formData, meetingType: e.target.value })}
+              className={styles.selectField}
+            >
+              <option value="Internal Fungsi">Internal Fungsi</option>
+              <option value="Lintas Fungsi/Antar Bidang">Lintas Fungsi/Antar Bidang</option>
+              <option value="Internal Fungsi & Pihak External">Internal Fungsi & Pihak External</option>
+            </select>
+          </div>
+
+          {rooms.find(r => r.id === formData.roomId)?.type !== 'online' && (
+            <div className={styles.formGroup} style={{ marginTop: '-0.5rem' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer', fontSize: '0.9375rem', fontWeight: 600, color: 'var(--foreground)' }}>
+                <input
+                  type="checkbox"
+                  checked={formData.isHybrid}
+                  onChange={(e) => setFormData({ ...formData, isHybrid: e.target.checked })}
+                  style={{ width: '18px', height: '18px', accentColor: 'var(--primary)' }}
+                />
+                🌐 Hybrid Meeting (Tersedia Room Zoom)
+              </label>
+            </div>
+          )}
+
+          <div className={styles.formGroup}>
             <label className={styles.formLabel}>Judul Kegiatan / Meeting</label>
-            <input 
-              required 
-              type="text" 
-              placeholder="Cth: Rapat Evaluasi Bulanan Tingkat Manajer dan Direksi" 
-              value={formData.title} 
-              onChange={(e) => setFormData({ ...formData, title: e.target.value })} 
-              className={styles.textInput} 
+            <input
+              required
+              type="text"
+              placeholder="Cth: Rapat Evaluasi Bulanan Tingkat Manajer dan Direksi"
+              value={formData.title}
+              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+              className={styles.textInput}
             />
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
             <div className={styles.formGroup}>
               <label className={styles.formLabel}>Fungsi / Bidang</label>
-              <input 
-                required 
-                type="text" 
-                placeholder="Cth: SDM / Teknik" 
-                value={formData.division} 
-                onChange={(e) => setFormData({ ...formData, division: e.target.value })} 
-                className={styles.textInput} 
+              <input
+                required
+                type="text"
+                placeholder="Cth: SDM / Teknik"
+                value={formData.division}
+                onChange={(e) => setFormData({ ...formData, division: e.target.value })}
+                className={styles.textInput}
               />
             </div>
             <div className={styles.formGroup}>
@@ -417,20 +457,20 @@ export default function BookingModal({
           </div>
 
           {/* CONSUMPTION SECTION */}
-          <div style={{ 
-            marginTop: '0.5rem', 
-            padding: '1rem', 
-            borderRadius: 'var(--radius-md)', 
+          <div style={{
+            marginTop: '0.5rem',
+            padding: '1rem',
+            borderRadius: 'var(--radius-md)',
             border: formData.consumption.requested ? '1px solid var(--primary)' : '1px solid var(--border)',
             background: formData.consumption.requested ? 'rgba(59, 130, 246, 0.02)' : 'var(--surface)',
             transition: 'all 0.3s ease'
           }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', fontWeight: 600, marginBottom: formData.consumption.requested ? '1rem' : '0' }}>
-              <input 
-                type="checkbox" 
-                checked={formData.consumption.requested} 
-                onChange={(e) => setFormData({ 
-                  ...formData, 
+              <input
+                type="checkbox"
+                checked={formData.consumption.requested}
+                onChange={(e) => setFormData({
+                  ...formData,
                   consumption: { ...formData.consumption, requested: e.target.checked }
                 })}
                 style={{ width: '18px', height: '18px', accentColor: 'var(--primary)' }}
@@ -440,13 +480,34 @@ export default function BookingModal({
 
             {formData.consumption.requested && (
               <div style={{ animation: 'fadeIn 0.3s ease', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                <div style={{ display: 'flex', gap: '1rem', paddingLeft: '2rem', flexWrap: 'wrap' }}>
+                {/* Information Box for Consumption Rules */}
+                <div style={{
+                  padding: '0.85rem',
+                  backgroundColor: '#FFFBEB',
+                  border: '1px solid #FEF3C7',
+                  borderRadius: 'var(--radius-sm)',
+                  fontSize: '0.75rem',
+                  color: '#92400E',
+                  lineHeight: '1.5'
+                }}>
+                  <div style={{ fontWeight: 800, marginBottom: '0.25rem', display: 'flex', alignItems: 'center', gap: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.025em' }}>
+                    <span>⚠️</span> Ketentuan Konsumsi:
+                  </div>
+                  <ul style={{ margin: 0, paddingLeft: '1.25rem' }}>
+                    <li>Pemesanan jam <b>08:00 s/d 12:00</b>: Snack Pagi & Makan Siang</li>
+                    <li>Pemesanan jam <b>09:00 s/d 12:00</b>: Makan Siang</li>
+                    <li>Pemesanan jam <b>13:00 s/d 16:00</b>: Snack Sore</li>
+                  </ul>
+                </div>
+
+                <div style={{ display: 'flex', gap: '1rem', paddingLeft: '0.5rem', flexWrap: 'wrap', marginTop: '0.25rem' }}>
+
                   <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', cursor: 'pointer' }}>
-                    <input 
-                      type="checkbox" 
-                      checked={formData.consumption.morningSnack} 
-                      onChange={(e) => setFormData({ 
-                        ...formData, 
+                    <input
+                      type="checkbox"
+                      checked={formData.consumption.morningSnack}
+                      onChange={(e) => setFormData({
+                        ...formData,
                         consumption: { ...formData.consumption, morningSnack: e.target.checked }
                       })}
                       style={{ accentColor: 'var(--primary)' }}
@@ -454,11 +515,11 @@ export default function BookingModal({
                     Snack Pagi
                   </label>
                   <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', cursor: 'pointer' }}>
-                    <input 
-                      type="checkbox" 
-                      checked={formData.consumption.lunch} 
-                      onChange={(e) => setFormData({ 
-                        ...formData, 
+                    <input
+                      type="checkbox"
+                      checked={formData.consumption.lunch}
+                      onChange={(e) => setFormData({
+                        ...formData,
                         consumption: { ...formData.consumption, lunch: e.target.checked }
                       })}
                       style={{ accentColor: 'var(--primary)' }}
@@ -466,11 +527,11 @@ export default function BookingModal({
                     Makan Siang
                   </label>
                   <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', cursor: 'pointer' }}>
-                    <input 
-                      type="checkbox" 
-                      checked={formData.consumption.afternoonSnack} 
-                      onChange={(e) => setFormData({ 
-                        ...formData, 
+                    <input
+                      type="checkbox"
+                      checked={formData.consumption.afternoonSnack}
+                      onChange={(e) => setFormData({
+                        ...formData,
                         consumption: { ...formData.consumption, afternoonSnack: e.target.checked }
                       })}
                       style={{ accentColor: 'var(--primary)' }}
@@ -478,16 +539,16 @@ export default function BookingModal({
                     Snack Sore
                   </label>
                 </div>
-                
+
                 <div style={{ paddingLeft: '2rem' }}>
                   <label className={styles.formLabel} style={{ fontSize: '0.8rem' }}>Catatan Khusus (Opsional)</label>
-                  <input 
-                    type="text" 
-                    placeholder="Cth: Alergi kacang, Vegetarian, dsb." 
+                  <input
+                    type="text"
+                    placeholder=""
                     value={formData.consumption.notes}
-                    onChange={(e) => setFormData({ 
-                      ...formData, 
-                      consumption: { ...formData.consumption, notes: e.target.value } 
+                    onChange={(e) => setFormData({
+                      ...formData,
+                      consumption: { ...formData.consumption, notes: e.target.value }
                     })}
                     className={styles.textInput}
                     style={{ fontSize: '0.875rem', padding: '0.5rem' }}
