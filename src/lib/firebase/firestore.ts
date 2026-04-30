@@ -894,6 +894,15 @@ export const subscribeToUserBookings = (uid: string, callback: (data: BookingDat
   });
 };
 
+export const subscribeToAllBookings = (callback: (data: BookingData[]) => void) => {
+  if (!db) return () => {};
+  const q = query(collection(db, "bookings"));
+  return onSnapshot(q, (snap) => {
+    const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as BookingData));
+    callback(data);
+  });
+};
+
 export const subscribeToUserVehicles = (uid: string, callback: (data: VehicleBooking[]) => void) => {
   if (!db) return () => {};
   const q = query(collection(db, "vehicle_bookings"), where("userId", "==", uid));
@@ -903,9 +912,27 @@ export const subscribeToUserVehicles = (uid: string, callback: (data: VehicleBoo
   });
 };
 
+export const subscribeToAllVehicles = (callback: (data: VehicleBooking[]) => void) => {
+  if (!db) return () => {};
+  const q = query(collection(db, "vehicle_bookings"));
+  return onSnapshot(q, (snap) => {
+    const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as VehicleBooking));
+    callback(data);
+  });
+};
+
 export const subscribeToUserItems = (uid: string, callback: (data: ItemRequest[]) => void) => {
   if (!db) return () => {};
   const q = query(collection(db, "item_requests"), where("userId", "==", uid));
+  return onSnapshot(q, (snap) => {
+    const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as ItemRequest));
+    callback(data);
+  });
+};
+
+export const subscribeToAllItems = (callback: (data: ItemRequest[]) => void) => {
+  if (!db) return () => {};
+  const q = query(collection(db, "item_requests"));
   return onSnapshot(q, (snap) => {
     const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as ItemRequest));
     callback(data);
@@ -962,15 +989,28 @@ export const subscribeToPendingItemRequests = (status: string[], callback: (data
 
 export const subscribeToIncompleteZoom = (callback: (data: BookingData[]) => void) => {
   if (!db) return () => {};
+  
+  // Mengambil semua booking aktif dan memfilter di client side
+  // untuk memastikan booking dengan meetingLink undefined atau "" tertangkap,
+  // termasuk memfilter ruangan online/hybrid.
   const q = query(
     collection(db, "bookings"), 
-    where("meetingLink", "==", ""),
     where("status", "==", "active")
   );
+  
   return onSnapshot(q, (snap) => {
-    // Filter online rooms on client side for simplicity or match query
     const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as BookingData));
-    callback(data);
+    
+    const incompleteZoom = data.filter(b => {
+      const isZoomOrHybrid = (b.roomName && b.roomName.toLowerCase().includes('zoom')) || b.isHybrid;
+      const hasNoLink = !b.meetingLink || b.meetingLink.trim() === "";
+      return isZoomOrHybrid && hasNoLink;
+    });
+
+    // Urutkan berdasarkan waktu pembuatan terbaru
+    incompleteZoom.sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
+    
+    callback(incompleteZoom);
   });
 };
 

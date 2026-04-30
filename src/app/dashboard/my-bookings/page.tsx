@@ -9,6 +9,9 @@ import {
   subscribeToUserBookings,
   subscribeToUserVehicles,
   subscribeToUserItems,
+  subscribeToAllBookings,
+  subscribeToAllVehicles,
+  subscribeToAllItems,
   cancelBooking,
   cancelBookingSeries,
   initAndGetRooms,
@@ -40,6 +43,11 @@ export default function MyBookingsPage() {
   const [rooms, setRooms] = useState<Room[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Filter & Search State
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterStatus, setFilterStatus] = useState("all");
+  const [filterDate, setFilterDate] = useState("all");
+
   // Modals & Interaction State
   const [isRoomModalOpen, setIsRoomModalOpen] = useState(false);
   const [isVehicleModalOpen, setIsVehicleModalOpen] = useState(false);
@@ -68,17 +76,18 @@ export default function MyBookingsPage() {
     setLoading(true);
     fetchData();
 
-    // Subscribe to all my data
-    const unsubRooms = subscribeToUserBookings(user.uid, (data) => {
-      setRoomBookings(data);
-    });
-    const unsubVehicles = subscribeToUserVehicles(user.uid, (data) => {
-      setVehicles(data);
-    });
-    const unsubItems = subscribeToUserItems(user.uid, (data) => {
-      setItems(data);
-      setLoading(false); // Only set loading false once all data is initially received
-    });
+    // Subscribe to data based on role
+    const unsubRooms = userRole === "admin"
+      ? subscribeToAllBookings((data) => setRoomBookings(data))
+      : subscribeToUserBookings(user.uid, (data) => setRoomBookings(data));
+
+    const unsubVehicles = userRole === "admin"
+      ? subscribeToAllVehicles((data) => setVehicles(data))
+      : subscribeToUserVehicles(user.uid, (data) => setVehicles(data));
+
+    const unsubItems = userRole === "admin"
+      ? subscribeToAllItems((data) => { setItems(data); setLoading(false); })
+      : subscribeToUserItems(user.uid, (data) => { setItems(data); setLoading(false); });
 
     return () => {
       unsubRooms();
@@ -86,6 +95,44 @@ export default function MyBookingsPage() {
       unsubItems();
     };
   }, [user]);
+
+  const isDateMatch = (dateStr: string | any) => {
+    if (filterDate === "all") return true;
+    if (!dateStr) return false;
+    
+    let dateObj: Date;
+    if (typeof dateStr === 'string') {
+      dateObj = new Date(dateStr);
+    } else if (dateStr.seconds) {
+      dateObj = new Date(dateStr.seconds * 1000);
+    } else if (dateStr.toMillis) {
+      dateObj = new Date(dateStr.toMillis());
+    } else {
+      dateObj = new Date(dateStr);
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const checkDate = new Date(dateObj);
+    checkDate.setHours(0, 0, 0, 0);
+
+    if (filterDate === "hari") {
+      return checkDate.getTime() === today.getTime();
+    } else if (filterDate === "minggu") {
+      const startOfWeek = new Date(today);
+      const day = today.getDay() || 7;
+      if (day !== 1) startOfWeek.setHours(-24 * (day - 1));
+      
+      const endOfWeek = new Date(startOfWeek);
+      endOfWeek.setHours(24 * 6);
+
+      return checkDate >= startOfWeek && checkDate <= endOfWeek;
+    } else if (filterDate === "bulan") {
+      return checkDate.getMonth() === today.getMonth() && checkDate.getFullYear() === today.getFullYear();
+    }
+    return true;
+  };
 
   // Filtering Rooms by Type (Meeting vs Zoom)
   const roomDateFilter = (data: BookingData[]) => {
@@ -99,7 +146,31 @@ export default function MyBookingsPage() {
   const currentRoomBookings = roomBookings.filter(b => {
     const room = rooms.find(r => r.id === b.roomId);
     if (!room) return false;
-    return activeTab === "meeting" ? room.type === "physical" : room.type === "online";
+    const isTabMatch = activeTab === "meeting" ? room.type === "physical" : room.type === "online";
+    const isStatusMatch = filterStatus === "all" || b.status === filterStatus;
+    const searchMatch = !searchQuery || 
+      b.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+      (b.userName || "").toLowerCase().includes(searchQuery.toLowerCase());
+    const dateMatch = userRole === "admin" ? isDateMatch(b.date) : true;
+    return isTabMatch && isStatusMatch && searchMatch && dateMatch;
+  });
+
+  const filteredVehicles = vehicles.filter(v => {
+    const isStatusMatch = filterStatus === "all" || v.status === filterStatus;
+    const searchMatch = !searchQuery || 
+      v.event.toLowerCase().includes(searchQuery.toLowerCase()) || 
+      (v.userName || "").toLowerCase().includes(searchQuery.toLowerCase());
+    const dateMatch = userRole === "admin" ? isDateMatch(v.date) : true;
+    return isStatusMatch && searchMatch && dateMatch;
+  });
+
+  const filteredItems = items.filter(i => {
+    const isStatusMatch = filterStatus === "all" || i.status === filterStatus;
+    const searchMatch = !searchQuery || 
+      i.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+      (i.userName || "").toLowerCase().includes(searchQuery.toLowerCase());
+    const dateMatch = userRole === "admin" ? isDateMatch(i.createdAt) : true;
+    return isStatusMatch && searchMatch && dateMatch;
   });
 
   const displayRoomBookings = (() => {
@@ -189,6 +260,55 @@ export default function MyBookingsPage() {
         <button onClick={() => setActiveTab('item')} className={`${styles.tabButton} ${activeTab === 'item' ? styles.active : ""}`}>📦 Permintaan Barang</button>
       </div>
 
+      {/* Filter & Search UI */}
+      <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
+        {userRole === "admin" && (
+          <select 
+            value={filterDate}
+            onChange={(e) => setFilterDate(e.target.value)}
+            style={{ padding: '0.75rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', minWidth: '150px' }}
+          >
+            <option value="all">Semua Waktu</option>
+            <option value="hari">Hari Ini</option>
+            <option value="minggu">Minggu Ini</option>
+            <option value="bulan">Bulan Ini</option>
+          </select>
+        )}
+        <input 
+          type="text" 
+          placeholder="Cari berdasarkan judul, nama pemesan..." 
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          style={{ flex: 1, padding: '0.75rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}
+        />
+        <select 
+          value={filterStatus}
+          onChange={(e) => setFilterStatus(e.target.value)}
+          style={{ padding: '0.75rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', minWidth: '150px' }}
+        >
+          <option value="all">Semua Status</option>
+          {activeTab === 'meeting' || activeTab === 'zoom' ? (
+            <>
+              <option value="active">Aktif</option>
+              <option value="cancelled">Dibatalkan</option>
+            </>
+          ) : activeTab === 'vehicle' ? (
+            <>
+              <option value="pending">Menunggu Validasi</option>
+              <option value="approved">Disetujui</option>
+              <option value="rejected">Ditolak</option>
+            </>
+          ) : (
+            <>
+              <option value="pending">Pending</option>
+              <option value="approved">Disetujui</option>
+              <option value="rejected">Ditolak</option>
+              <option value="completed">Selesai</option>
+            </>
+          )}
+        </select>
+      </div>
+
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
 
         {/* Render Meeting & Zoom */}
@@ -243,6 +363,23 @@ export default function MyBookingsPage() {
                     <p style={{ fontSize: '0.875rem', marginTop: '0.25rem' }}>
                       🏷️ <b>Jenis Meeting:</b> {b.meetingType || 'Internal Fungsi'} {b.isHybrid && <span style={{ color: 'var(--primary)', fontWeight: 700, marginLeft: '0.5rem' }}>🌐 (Hybrid)</span>}
                     </p>
+                    {userRole === "admin" && (
+                      <div style={{ 
+                        marginTop: '0.5rem', 
+                        padding: '0.4rem 0.6rem', 
+                        background: '#F0F9FF', 
+                        borderRadius: '6px', 
+                        border: '1px solid #BAE6FD',
+                        fontSize: '0.8125rem',
+                        color: '#0369A1',
+                        display: 'inline-flex',
+                        flexDirection: 'column',
+                        gap: '0.25rem'
+                      }}>
+                        <div>👤 <b>Pemesan:</b> <span style={{ fontWeight: 600 }}>{b.userName || "Tidak diketahui"}</span></div>
+                        <div>🏢 <b>Fungsi / Bidang:</b> <span style={{ fontWeight: 600 }}>{b.division || "-"}</span></div>
+                      </div>
+                    )}
 
                     {activeTab === 'zoom' && b.meetingLink && (
                       <div style={{
@@ -306,14 +443,14 @@ export default function MyBookingsPage() {
 
         {/* Render Vehicles */}
         {activeTab === 'vehicle' && (
-          vehicles.length === 0 ? (
+          filteredVehicles.length === 0 ? (
             <div className={styles.emptyState}>
               <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🚗</div>
               <h3>Belum ada peminjaman</h3>
               <p>Riwayat peminjaman kendaraan Anda akan muncul di sini.</p>
             </div>
           ) : (
-            vehicles.map(v => (
+            filteredVehicles.map(v => (
               <div key={v.id} className={styles.card} style={{
                 borderLeft: `4px solid ${v.status === 'approved' ? '#10B981' : v.status === 'rejected' ? '#EF4444' : '#F59E0B'}`
               }}>
@@ -424,14 +561,14 @@ export default function MyBookingsPage() {
 
         {/* Render Items */}
         {activeTab === 'item' && (
-          items.length === 0 ? (
+          filteredItems.length === 0 ? (
             <div className={styles.emptyState}>
               <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>📦</div>
               <h3>Belum ada permintaan</h3>
               <p>Daftar pengadaan ATK/Barang Anda akan muncul di sini.</p>
             </div>
           ) : (
-            items.map(i => (
+            filteredItems.map(i => (
               <div key={i.id} className={styles.card} style={{
                 borderLeft: `4px solid ${i.status === 'completed' ? '#3B82F6' : i.status === 'approved' ? '#10B981' : i.status === 'rejected' ? '#EF4444' : '#F59E0B'}`
               }}>
