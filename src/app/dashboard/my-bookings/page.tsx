@@ -134,6 +134,12 @@ export default function MyBookingsPage() {
     return true;
   };
 
+  const isPastDate = (dateStr: string) => {
+    if (!dateStr) return false;
+    const today = new Date().toISOString().split('T')[0];
+    return dateStr < today;
+  };
+
   // Filtering Rooms by Type (Meeting vs Zoom)
   const roomDateFilter = (data: BookingData[]) => {
     const today = new Date().toISOString().split('T')[0];
@@ -320,9 +326,11 @@ export default function MyBookingsPage() {
               <p>Anda tidak memiliki jadwal mendatang di kategori ini.</p>
             </div>
           ) : (
-            displayRoomBookings.map(b => (
+            displayRoomBookings.map(b => {
+              const isPast = isPastDate((b as any).minDate || b.date);
+              return (
               <div key={b.id || b.groupId} className={styles.card} style={{
-                borderLeft: b.status === 'active' ? '4px solid var(--primary)' : '4px solid #CBD5E1',
+                borderLeft: b.status === 'cancelled' ? '4px solid #CBD5E1' : isPast ? '4px solid #3B82F6' : '4px solid var(--primary)',
                 opacity: b.status === 'cancelled' ? 0.6 : 1
               }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
@@ -349,8 +357,9 @@ export default function MyBookingsPage() {
                       <h4 style={{ fontSize: '1.1rem', fontWeight: 700, overflowWrap: 'break-word', wordBreak: 'break-word', maxWidth: '100%' }}>{b.title}</h4>
                       <span style={{
                         fontSize: '0.65rem', padding: '0.2rem 0.5rem', borderRadius: '20px', fontWeight: 700,
-                        background: b.status === 'active' ? '#D1FAE5' : '#F1F5F9', color: b.status === 'active' ? '#10B981' : '#64748B'
-                      }}>{b.status === 'active' ? 'AKTIF' : 'DIBATALKAN'}</span>
+                        background: b.status === 'cancelled' ? '#F1F5F9' : isPast ? '#DBEAFE' : '#D1FAE5',
+                        color: b.status === 'cancelled' ? '#64748B' : isPast ? '#1E40AF' : '#10B981'
+                      }}>{b.status === 'cancelled' ? 'DIBATALKAN' : isPast ? 'SELESAI' : 'AKTIF'}</span>
                     </div>
                     <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>
                       📍 {b.roomName} &bull; 🕒 {b.startTime} - {b.endTime}
@@ -428,16 +437,19 @@ export default function MyBookingsPage() {
                     )}
                   </div>
                   <div className={styles.rowActions}>
-                    {b.status === 'active' && (
+                    {b.status === 'active' && !isPastDate((b as any).minDate || b.date) ? (
                       <>
                         <button onClick={() => { setSelectedRoomBooking(b as BookingData); setIsRoomModalOpen(true); }} className={styles.btnEdit}>✏️ Edit</button>
                         <button onClick={() => openCancelConfirm(b.id!, activeTab, b.groupId)} className={styles.btnCancel}>🗑️ Batal</button>
                       </>
+                    ) : b.status === 'active' && (
+                      <span style={{ fontSize: '0.75rem', color: '#94A3B8', fontStyle: 'italic', padding: '0.5rem' }}>Jadwal Telah Berlalu</span>
                     )}
                   </div>
                 </div>
               </div>
-            ))
+            );
+            })
           )
         )}
 

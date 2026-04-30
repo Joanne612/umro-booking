@@ -42,6 +42,12 @@ export default function ApprovalsPage() {
   const [rejectingItem, setRejectingItem] = useState<ItemRequest | null>(null);
   const [rejectReason, setRejectReason] = useState("");
 
+  const isPastDate = (dateStr?: string) => {
+    if (!dateStr) return false;
+    const today = new Date().toISOString().split('T')[0];
+    return dateStr < today;
+  };
+
   const fetchData = async () => {
     setLoading(true);
     try {
@@ -462,6 +468,32 @@ export default function ApprovalsPage() {
                 </div>
                 <div style={{ padding: '1rem 1.25rem', background: '#F8FAFC', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end', gap: '1rem', alignItems: 'center' }}>
                   {viewMode === "pending" ? (
+                    isPastDate(booking.date) ? (
+                      <div style={{ display: 'flex', width: '100%', justifyContent: 'space-between', alignItems: 'center' }}>
+                        {(userRole === 'admin' || userRole === 'asman' || userRole === 'staff_umum') && (
+                          <button 
+                            onClick={() => exportConsumptionToPDF([booking])}
+                            title="Cetak PDF Detail Agenda"
+                            style={{ 
+                              padding: '0.5rem 0.75rem', 
+                              border: '1px solid #EF4444', 
+                              color: '#EF4444', 
+                              background: 'white',
+                              borderRadius: 'var(--radius-md)',
+                              fontSize: '0.8125rem',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.3rem'
+                            }}
+                          >
+                            📄 PDF
+                          </button>
+                        )}
+                        <span style={{ fontSize: '0.8125rem', color: '#EF4444', fontStyle: 'italic', fontWeight: 600 }}>Jadwal Telah Berlalu (Tidak Dapat Diproses)</span>
+                      </div>
+                    ) : (
                     <>
                         {(userRole === 'admin' || userRole === 'asman' || userRole === 'staff_umum') && (
                           <button 
@@ -496,6 +528,7 @@ export default function ApprovalsPage() {
                         {userRole === 'staff_umum' ? '✓ Mark Selesai' : '✓ Setujui'}
                       </button>
                     </>
+                    )
                   ) : (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%' }}>
                       {(userRole === 'admin' || userRole === 'asman' || userRole === 'staff_umum') && (

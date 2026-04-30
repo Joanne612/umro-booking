@@ -24,6 +24,7 @@ export default function VehicleApprovalCard({
 
   const isProcessing = processingId === booking.id;
   const isHistory = viewMode === "history";
+  const isPast = booking.date ? (booking.date < new Date().toISOString().split('T')[0]) : false;
 
   return (
     <div style={{
@@ -156,7 +157,11 @@ export default function VehicleApprovalCard({
       {/* Actions */}
       {!isHistory && (
         <div style={{ padding: '1rem 1.5rem', background: '#F8FAFC', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end', gap: '1rem', alignItems: 'center' }}>
-          {userRole === 'staff_umum' ? (
+          {isPast ? (
+            <div style={{ fontSize: '0.8125rem', color: '#EF4444', fontStyle: 'italic', fontWeight: 600 }}>
+              Jadwal Telah Berlalu (Tidak Dapat Diproses)
+            </div>
+          ) : userRole === 'staff_umum' ? (
             <div style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
               Menunggu keputusan Asman Umum
             </div>

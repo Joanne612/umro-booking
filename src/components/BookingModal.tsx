@@ -197,6 +197,11 @@ export default function BookingModal({
               createdAt: existingInGroup?.createdAt || new Date(),
               ...(groupId && { groupId }),
               ...(isMultiDay && { endDate: formData.endDate }), // Store the range info in every doc
+
+              // Reschedule Notification Logic
+              ...((!existingInGroup || existingInGroup.startTime !== formData.startTime || existingInGroup.endTime !== formData.endTime)
+                ? { isRescheduled: true } : {}),
+
               // Always sync consumption if it existed before or is currently requested
               ...((existingInGroup?.consumption || formData.consumption.requested) ? {
                 consumption: {
@@ -242,6 +247,11 @@ export default function BookingModal({
             userId: user.uid,
             userName: user.displayName || user.email || "Unknown",
             createdAt: editData?.createdAt || new Date(),
+
+            // Reschedule Notification Logic
+            ...((editData.date !== formData.date || editData.startTime !== formData.startTime || editData.endTime !== formData.endTime)
+              ? { isRescheduled: true } : {}),
+
             // Always sync consumption if it existed before or is currently requested
             ...((editData?.consumption || formData.consumption.requested) ? {
               consumption: {
@@ -380,8 +390,8 @@ export default function BookingModal({
               className={styles.selectField}
             >
               <option value="Internal Fungsi">Internal Fungsi</option>
-              <option value="Lintas Fungsi/Antar Bidang">Lintas Fungsi/Antar Bidang</option>
-              <option value="Internal Fungsi & Pihak External">Internal Fungsi & Pihak External</option>
+              <option value="Lintas Fungsi/Antar Bidang">Lintas Fungsi / Antar Bidang</option>
+              <option value="Internal Fungsi & Pihak External">Internal NP / Pihak External</option>
             </select>
           </div>
 

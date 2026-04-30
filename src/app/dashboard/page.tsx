@@ -10,6 +10,8 @@ import {
   subscribeToPendingVehicles,
   subscribeToWaitingAsmanVehicles,
   subscribeToIncompleteZoom,
+  subscribeToRescheduledBookings,
+  acknowledgeReschedule,
   subscribeToUserBookings,
   getDriverByEmail,
   subscribeToAssignedTrips,
@@ -28,6 +30,7 @@ export default function DashboardMonitoring() {
   const [stats, setStats] = useState<any>(null);
   const [pendingItems, setPendingItems] = useState<{ id?: string, title: string, type: string, user: string, link?: string }[]>([]);
   const [incompleteZoomBookings, setIncompleteZoomBookings] = useState<BookingData[]>([]);
+  const [rescheduledBookings, setRescheduledBookings] = useState<BookingData[]>([]);
   const [activeTrips, setActiveTrips] = useState<DriverTrip[]>([]);
   const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
   const [selectedBookingForLink, setSelectedBookingForLink] = useState<BookingData | null>(null);
@@ -90,12 +93,7 @@ export default function DashboardMonitoring() {
             });
         }));
 
-        if (userRole === "admin") {
-            unsubs.push(subscribeToIncompleteZoom(data => {
-                // Filter only for online/zoom rooms if needed
-                setIncompleteZoomBookings(data.slice(0, 10));
-            }));
-        }
+        // Removed admin block from here
     } else if (userRole === "driver") {
         // Driver specific penugasan
         unsubs.push(subscribeToAssignedTrips(user.uid, user.email, data => {
@@ -120,6 +118,16 @@ export default function DashboardMonitoring() {
                 user: r.status,
                 link: "/dashboard/my-bookings"
             })));
+        }));
+    }
+    
+    // Zoom & Reschedule Notifications for Admin and Staff Umum
+    if (userRole === "admin" || userRole === "staff_umum") {
+        unsubs.push(subscribeToIncompleteZoom(data => {
+            setIncompleteZoomBookings(data.slice(0, 10));
+        }));
+        unsubs.push(subscribeToRescheduledBookings(data => {
+            setRescheduledBookings(data);
         }));
     }
 
@@ -193,8 +201,8 @@ export default function DashboardMonitoring() {
         <p style={{ color: 'var(--text-muted)' }}>Berikut adalah ringkasan aktivitas UMRO untuk bulan ini.</p>
       </div>
 
-      {/* Admin Specific: Zoom Link Monitoring */}
-      {userRole === "admin" && incompleteZoomBookings.length > 0 && (
+      {/* Admin/Staff Specific: Zoom Link Monitoring */}
+      {(userRole === "admin" || userRole === "staff_umum") && incompleteZoomBookings.length > 0 && (
         <div className={styles.card} style={{ marginBottom: '2rem', borderLeft: '4px solid var(--primary)', background: '#F0F9FF', animation: 'fadeIn 0.5s ease' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
             <div>
@@ -233,6 +241,57 @@ export default function DashboardMonitoring() {
                   }}
                 >
                   Input Link Meeting
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Admin/Staff Specific: Reschedule Monitoring */}
+      {(userRole === "admin" || userRole === "staff_umum") && rescheduledBookings.length > 0 && (
+        <div className={styles.card} style={{ marginBottom: '2rem', borderLeft: '4px solid #F59E0B', background: '#FEF3C7', animation: 'fadeIn 0.5s ease' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+            <div>
+              <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#92400E' }}>⚠️ Perhatian: Jadwal Meeting Di-Reschedule</h3>
+              <p style={{ fontSize: '0.875rem', color: '#B45309' }}>Terdapat {rescheduledBookings.length} pemesanan yang telah diubah jadwalnya. Pastikan Anda memperbarui jadwal di aplikasi terkait (jika menggunakan Zoom).</p>
+            </div>
+          </div>
+          
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1rem' }}>
+            {rescheduledBookings.map((b) => (
+              <div key={b.id} className={styles.actionItem} style={{ background: 'white', flexDirection: 'column', alignItems: 'flex-start', gap: '1rem', padding: '1.25rem', border: '1px solid #FDE68A' }}>
+                <div className={styles.actionInfo}>
+                  <h4 style={{ color: 'var(--foreground)' }}>{b.title}</h4>
+                  <p className={styles.actionMeta} style={{ margin: '0.25rem 0' }}>
+                    📍 {b.roomName} &bull; 👤 {b.userName}
+                  </p>
+                  <p className={styles.actionMeta} style={{ color: '#EA580C', fontWeight: 600 }}>
+                    Jadwal Baru: 📅 {new Date(b.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })} &bull; 🕒 {b.startTime} - {b.endTime}
+                  </p>
+                </div>
+                <button 
+                  onClick={async () => {
+                    try {
+                      await acknowledgeReschedule(b.id!);
+                      setRescheduledBookings(prev => prev.filter(item => item.id !== b.id));
+                    } catch (error) {
+                      console.error("Gagal update status:", error);
+                    }
+                  }}
+                  style={{ 
+                    width: '100%', 
+                    padding: '0.6rem', 
+                    background: '#F59E0B', 
+                    color: 'white', 
+                    border: 'none', 
+                    borderRadius: 'var(--radius-sm)', 
+                    fontWeight: 600, 
+                    cursor: 'pointer',
+                    fontSize: '0.875rem'
+                  }}
+                >
+                  Tandai Sudah Diupdate
                 </button>
               </div>
             ))}

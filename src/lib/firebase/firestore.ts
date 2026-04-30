@@ -23,6 +23,7 @@ export interface BookingData {
   isHybrid?: boolean;
   status: "active" | "cancelled";
   meetingLink?: string;
+  isRescheduled?: boolean;
   groupId?: string; // Untuk mengelompokkan booking multi-hari
   endDate?: string;
   consumption?: {
@@ -949,7 +950,31 @@ export const getWaitingAsmanVehicleBookings = async (): Promise<VehicleBooking[]
   return snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as VehicleBooking));
 };
 
+export const acknowledgeReschedule = async (bookingId: string) => {
+  if (!db) return;
+  const docRef = doc(db, "bookings", bookingId);
+  await updateDoc(docRef, { isRescheduled: false });
+};
+
 // ================= DASHBOARD STATS =================
+
+export const subscribeToRescheduledBookings = (callback: (data: BookingData[]) => void) => {
+  if (!db) return () => {};
+  const q = query(
+    collection(db, "bookings"),
+    where("status", "==", "active"),
+    where("isRescheduled", "==", true)
+  );
+
+  return onSnapshot(q, (snap) => {
+    // Filter secara client jika perlu, tapi query di atas sudah spesifik
+    const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as BookingData));
+    
+    // Sort descending by date
+    const sorted = data.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    callback(sorted);
+  });
+};
 
 export const subscribeToPendingConsumption = (callback: (data: BookingData[]) => void) => {
   if (!db) return () => {};
