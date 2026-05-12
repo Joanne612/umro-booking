@@ -189,11 +189,12 @@ export const getUserMaintenanceRequests = async (
   if (!db) return [];
   const q = query(
     collection(db, "maintenance_requests"),
-    where("userId", "==", userId),
-    orderBy("createdAt", "desc")
+    where("userId", "==", userId)
   );
   const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as MaintenanceRequest));
+  return snap.docs
+    .map((d) => ({ id: d.id, ...d.data() } as MaintenanceRequest))
+    .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
 };
 
 export const getMaintenanceRequestsByStatus = async (
@@ -202,11 +203,12 @@ export const getMaintenanceRequestsByStatus = async (
   if (!db) return [];
   const q = query(
     collection(db, "maintenance_requests"),
-    where("status", "in", statuses),
-    orderBy("createdAt", "desc")
+    where("status", "in", statuses)
   );
   const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as MaintenanceRequest));
+  return snap.docs
+    .map((d) => ({ id: d.id, ...d.data() } as MaintenanceRequest))
+    .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
 };
 
 export const updateMaintenanceRequestStatus = async (
@@ -226,12 +228,43 @@ export const subscribeToMaintenanceRequests = (
   if (!db) return () => {};
   const q = query(
     collection(db, "maintenance_requests"),
-    where("status", "in", statuses),
-    orderBy("createdAt", "desc")
+    where("status", "in", statuses)
   );
   return onSnapshot(q, (snap) => {
-    callback(snap.docs.map((d) => ({ id: d.id, ...d.data() } as MaintenanceRequest)));
+    const data = snap.docs.map((d) => ({ id: d.id, ...d.data() } as MaintenanceRequest));
+    callback(data.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)));
   });
+};
+
+export const subscribeToUserMaintenanceRequests = (
+  userId: string,
+  callback: (data: MaintenanceRequest[]) => void
+) => {
+  if (!db) return () => {};
+  const q = query(
+    collection(db, "maintenance_requests"),
+    where("userId", "==", userId)
+  );
+  return onSnapshot(q, (snap) => {
+    const data = snap.docs.map((d) => ({ id: d.id, ...d.data() } as MaintenanceRequest));
+    callback(data.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)));
+  });
+};
+
+export const subscribeToAllMaintenanceRequests = (
+  callback: (data: MaintenanceRequest[]) => void
+) => {
+  if (!db) return () => {};
+  const q = query(collection(db, "maintenance_requests"));
+  return onSnapshot(q, (snap) => {
+    const data = snap.docs.map((d) => ({ id: d.id, ...d.data() } as MaintenanceRequest));
+    callback(data.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)));
+  });
+};
+
+export const deleteMaintenanceRequest = async (id: string): Promise<void> => {
+  if (!db) return;
+  await deleteDoc(doc(db, "maintenance_requests", id));
 };
 
 export interface UserRole {

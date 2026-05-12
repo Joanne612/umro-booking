@@ -101,6 +101,24 @@ service cloud.firestore {
       );
     }
 
+    // Koleksi Maintenance Requests: PRIVASI KETAT
+    match /maintenance_requests/{requestId} {
+      allow read: if request.auth != null && (
+        isAdmin() || isAsman() || isStaffUmum() || request.auth.uid == resource.data.userId
+      );
+      allow create: if request.auth != null && !isViewOnly();
+      allow update: if request.auth != null && (
+        isAdmin() || isStaffUmum() || (
+          request.auth.uid == resource.data.userId && 
+          resource.data.status == 'pending' &&
+          request.resource.data.status == resource.data.status // User tidak boleh ubah status sendiri
+        )
+      );
+      allow delete: if request.auth != null && (
+        isAdmin() || (request.auth.uid == resource.data.userId && resource.data.status == 'pending')
+      );
+    }
+
     // Koleksi Driver Rates: Admin dan Koordinator Driver bisa baca tulis
     match /driver_rates/{rateId} {
       allow read, write: if isAdmin() || isKoordinatorDriver();

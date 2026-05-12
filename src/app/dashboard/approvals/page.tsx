@@ -14,9 +14,12 @@ import {
   updateVehicleBookingStatus,
   getItemRequestsByStatus,
   updateItemRequestStatus,
+  subscribeToMaintenanceRequests,
+  updateMaintenanceRequestStatus,
   BookingData,
   VehicleBooking,
-  ItemRequest
+  ItemRequest,
+  MaintenanceRequest
 } from "@/lib/firebase/firestore";
 import VehicleApprovalCard from "@/components/VehicleApprovalCard";
 import { exportConsumptionToPDF } from "@/lib/utils/consumptionExporter";
@@ -26,13 +29,14 @@ export default function ApprovalsPage() {
   const { user, userRole } = useAuth();
   const { showToast } = useToast();
 
-  const [activeTab, setActiveTab] = useState<"consumption" | "vehicle">("consumption");
+  const [activeTab, setActiveTab] = useState<"consumption" | "vehicle" | "item" | "maintenance">("consumption");
   const [viewMode, setViewMode] = useState<"pending" | "history">("pending");
   const [searchQuery, setSearchQuery] = useState("");
 
   const [consumptionBookings, setConsumptionBookings] = useState<BookingData[]>([]);
   const [vehicleBookings, setVehicleBookings] = useState<VehicleBooking[]>([]);
   const [itemRequests, setItemRequests] = useState<ItemRequest[]>([]);
+  const [maintenanceRequests, setMaintenanceRequests] = useState<MaintenanceRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState<string | null>(null);
 
@@ -40,6 +44,7 @@ export default function ApprovalsPage() {
   const [rejectingConsumption, setRejectingConsumption] = useState<BookingData | null>(null);
   const [rejectingVehicle, setRejectingVehicle] = useState<VehicleBooking | null>(null);
   const [rejectingItem, setRejectingItem] = useState<ItemRequest | null>(null);
+  const [rejectingMaint, setRejectingMaint] = useState<MaintenanceRequest | null>(null);
   const [rejectReason, setRejectReason] = useState("");
 
   const isPastDate = (dateStr?: string) => {
@@ -102,6 +107,18 @@ export default function ApprovalsPage() {
     return () => unsubscribe?.();
   }, [viewMode, activeTab]);
 
+  // Real-time Maintenance Subscription
+  useEffect(() => {
+    if (activeTab !== "maintenance") return;
+    setLoading(true);
+    const statuses = viewMode === "pending" ? ["pending", "in_progress"] : ["completed", "rejected"];
+    const unsub = subscribeToMaintenanceRequests(statuses, (data) => {
+      setMaintenanceRequests(data);
+      setLoading(false);
+    });
+    return () => unsub?.();
+  }, [viewMode, activeTab, userRole]);
+
   // Combined Search Filtering
   const filteredConsumption = useMemo(() => {
     return consumptionBookings.filter(b =>
@@ -128,6 +145,15 @@ export default function ApprovalsPage() {
       req.category?.toLowerCase().includes(searchQuery.toLowerCase())
     );
   }, [itemRequests, searchQuery]);
+
+  const filteredMaintenance = useMemo(() => {
+    return maintenanceRequests.filter(m =>
+      m.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      m.userName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      m.location?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      m.category?.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }, [maintenanceRequests, searchQuery]);
 
   const handleApproveConsumption = async (bookingId: string) => {
     if (!user) return;
@@ -262,6 +288,44 @@ export default function ApprovalsPage() {
     }
   };
 
+  const handleProcessMaintenance = async (id: string, newStatus: "in_progress" | "completed") => {
+    if (!user) return;
+    setProcessingId(id);
+    try {
+      await updateMaintenanceRequestStatus(id, newStatus, {
+        staffProcessedBy: user.uid,
+        staffProcessedByName: user.displayName || user.email || "Staff Umum",
+        staffProcessedDate: new Date().toISOString(),
+      });
+      showToast(newStatus === "in_progress" ? "Pengerjaan telah dimulai." : "Laporan ditandai selesai.", "success");
+    } catch (error: any) {
+      showToast("Gagal memproses: " + error.message, "error");
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const handleRejectMaint = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user || !rejectingMaint?.id || !rejectReason.trim()) return;
+    setProcessingId(rejectingMaint.id);
+    try {
+      await updateMaintenanceRequestStatus(rejectingMaint.id, "rejected", {
+        rejectReason,
+        staffProcessedBy: user.uid,
+        staffProcessedByName: user.displayName || user.email || "Staff Umum",
+        staffProcessedDate: new Date().toISOString(),
+      });
+      showToast("Laporan pemeliharaan telah ditolak.", "success");
+      setRejectingMaint(null);
+      setRejectReason("");
+    } catch (error: any) {
+      showToast("Gagal memproses: " + error.message, "error");
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
   if (userRole !== "admin" && userRole !== "asman" && userRole !== "staff_umum") {
     return (
       <div style={{ textAlign: "center", padding: "5rem 2rem" }}>
@@ -276,7 +340,7 @@ export default function ApprovalsPage() {
     <div style={{ animation: 'fadeIn 0.5s ease' }}>
       <div style={{ marginBottom: '2rem' }}>
         <h2 style={{ fontSize: '1.5rem', fontWeight: 700 }}>Panel Persetujuan</h2>
-        <p style={{ color: 'var(--text-muted)' }}>Kelola permintaan fasilitas (Konsumsi & Kendaraan) yang memerlukan keputusan Anda.</p>
+        <p style={{ color: 'var(--text-muted)' }}>Kelola permintaan fasilitas yang memerlukan perhatian Anda.</p>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', marginBottom: '2.5rem' }}>
@@ -336,6 +400,24 @@ export default function ApprovalsPage() {
             }}
           >
             🛒 Barang ({itemRequests.length})
+          </button>
+
+          <button
+            onClick={() => { setActiveTab("maintenance"); setViewMode("pending"); }}
+            style={{
+              padding: '0.75rem 1.5rem',
+              border: 'none',
+              background: 'none',
+              fontSize: '0.9375rem',
+              fontWeight: activeTab === "maintenance" ? 700 : 500,
+              color: activeTab === "maintenance" ? 'var(--primary)' : 'var(--text-muted)',
+              borderBottom: activeTab === "maintenance" ? '3px solid var(--primary)' : '3px solid transparent',
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+              whiteSpace: 'nowrap'
+            }}
+          >
+            🔧 Pemeliharaan ({maintenanceRequests.length})
           </button>
         </div>
 
@@ -715,6 +797,74 @@ export default function ApprovalsPage() {
             })}
           </div>
         )
+      ) : activeTab === "maintenance" ? (
+        /* ================= PEMELIHARAAN ================= */
+        filteredMaintenance.length === 0 ? (
+          <div style={{ padding: '4rem 2rem', textAlign: 'center', background: 'white', borderRadius: 'var(--radius-lg)', border: '1px dashed var(--border)' }}>
+            <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>{searchQuery ? '🔎' : (viewMode === 'pending' ? '🔧' : '📂')}</div>
+            <h3 style={{ fontSize: '1.25rem', fontWeight: 600 }}>
+              {searchQuery ? 'Hasil tidak ditemukan' : (viewMode === 'pending' ? 'Tidak Ada Laporan Aktif' : 'Riwayat Kosong')}
+            </h3>
+            <p style={{ color: 'var(--text-muted)' }}>
+              {searchQuery ? `Tidak ada hasil untuk "${searchQuery}"` : (viewMode === 'pending' ? 'Tidak ada laporan pemeliharaan yang perlu ditangani.' : 'Belum ada riwayat laporan pemeliharaan.')}
+            </p>
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gap: '1.25rem' }}>
+            {filteredMaintenance.map(m => {
+              const PCOLOR: Record<string, string> = { Rendah:'#16a34a', Sedang:'#d97706', Tinggi:'#ea580c', Darurat:'#dc2626' };
+              const PBG: Record<string, string>   = { Rendah:'#dcfce7', Sedang:'#fef3c7', Tinggi:'#ffedd5', Darurat:'#fee2e2' };
+              const SMAP: Record<string, {l:string;bg:string;c:string}> = {
+                pending:     {l:'⌛ Menunggu',          bg:'#FEF3C7', c:'#92400E'},
+                in_progress: {l:'🔄 Sedang Dikerjakan', bg:'#DBEAFE', c:'#1E40AF'},
+                completed:   {l:'✓ Selesai',            bg:'#D1FAE5', c:'#065F46'},
+                rejected:    {l:'✗ Ditolak',            bg:'#FEE2E2', c:'#991B1B'},
+              };
+              const sc = SMAP[m.status] || SMAP.pending;
+              const borderColor = m.status==='completed'?'#10B981':m.status==='in_progress'?'#3B82F6':m.status==='rejected'?'#EF4444':'#F59E0B';
+              return (
+                <div key={m.id} style={{ background:'white', borderRadius:'var(--radius-lg)', border:'1px solid var(--border)', overflow:'hidden', boxShadow:'0 2px 4px rgba(0,0,0,0.05)', borderLeft:`4px solid ${borderColor}` }}>
+                  <div style={{ padding:'1.25rem', display:'flex', justifyContent:'space-between', alignItems:'flex-start', flexWrap:'wrap', gap:'1rem', background: viewMode==='history'?'#F8FAFC':'rgba(0,162,233,0.02)' }}>
+                    <div style={{ flex:1, minWidth:0 }}>
+                      {m.ticketId && <div style={{ fontSize:'0.7rem', fontFamily:'monospace', color:'#475569', marginBottom:'0.4rem', fontWeight:700, background:'#EEF2FF', padding:'0.2rem 0.5rem', borderRadius:'4px', border:'1px dashed #C7D2FE', display:'inline-flex', alignItems:'center', gap:'0.3rem' }}><span>🎫</span> #{m.ticketId}</div>}
+                      <div style={{ display:'flex', gap:'0.4rem', flexWrap:'wrap', marginBottom:'0.3rem' }}>
+                        <span style={{ fontSize:'0.65rem', padding:'0.2rem 0.6rem', borderRadius:'99px', fontWeight:700, textTransform:'uppercase', background:PBG[m.priority]||'#F1F5F9', color:PCOLOR[m.priority]||'#475569', border:`1px solid ${PCOLOR[m.priority]||'#CBD5E1'}` }}>{m.priority}</span>
+                        <span style={{ fontSize:'0.65rem', padding:'0.2rem 0.6rem', borderRadius:'99px', fontWeight:700, background:'#F1F5F9', color:'#475569', border:'1px solid #E2E8F0' }}>{m.category}</span>
+                      </div>
+                      <h3 style={{ fontSize:'1.1rem', fontWeight:700, marginBottom:'0.25rem', wordBreak:'break-word' }}>{m.title}</h3>
+                      <div style={{ fontSize:'0.8125rem', color:'var(--text-muted)', display:'flex', flexDirection:'column', gap:'0.2rem' }}>
+                        <div>📍 <b style={{ color:'var(--foreground)' }}>{m.location}</b></div>
+                        <div>👤 {m.userName} &bull; 🏢 {m.division}</div>
+                        <div>📅 {m.createdAt?.toDate ? m.createdAt.toDate().toLocaleDateString('id-ID',{day:'numeric',month:'long',year:'numeric'}) : '-'}</div>
+                      </div>
+                    </div>
+                    {userRole === 'asman' && (
+                      <div style={{ display:'flex', alignItems:'center' }}>
+                        <span style={{ padding:'0.35rem 0.8rem', borderRadius:'99px', fontSize:'0.75rem', fontWeight:700, background:sc.bg, color:sc.c }}>ℹ️ {sc.l}</span>
+                      </div>
+                    )}
+                  </div>
+                  {m.description && <div style={{ padding:'0.75rem 1.25rem', fontSize:'0.875rem', color:'#475569', borderTop:'1px solid var(--border)', background:'#F8FAFC', lineHeight:1.6, whiteSpace:'pre-wrap' }}>{m.description.length>200?m.description.slice(0,200)+'…':m.description}</div>}
+                  <div style={{ padding:'0.875rem 1.25rem', background:'#F8FAFC', borderTop:'1px solid var(--border)', display:'flex', justifyContent:'flex-end', gap:'0.75rem', alignItems:'center' }}>
+                    {userRole === 'staff_umum' && viewMode === 'pending' ? (
+                      <>
+                        <button onClick={() => setRejectingMaint(m)} style={{ padding:'0.5rem 1rem', border:'1px solid #EF4444', color:'#EF4444', background:'white', borderRadius:'var(--radius-md)', fontSize:'0.8125rem', fontWeight:700, cursor:'pointer' }}>Tolak</button>
+                        {m.status === 'pending' && (
+                          <button onClick={() => handleProcessMaintenance(m.id!, 'in_progress')} disabled={processingId===m.id} style={{ padding:'0.5rem 1.25rem', border:'none', background:'#3B82F6', color:'white', borderRadius:'var(--radius-md)', fontSize:'0.8125rem', fontWeight:700, cursor:'pointer' }}>{processingId===m.id?'Memproses...':'🔄 Mulai Kerjakan'}</button>
+                        )}
+                        {m.status === 'in_progress' && (
+                          <button onClick={() => handleProcessMaintenance(m.id!, 'completed')} disabled={processingId===m.id} style={{ padding:'0.5rem 1.25rem', border:'none', background:'#059669', color:'white', borderRadius:'var(--radius-md)', fontSize:'0.8125rem', fontWeight:700, cursor:'pointer' }}>{processingId===m.id?'Memproses...':'✓ Tandai Selesai'}</button>
+                        )}
+                      </>
+                    ) : (
+                      <span style={{ padding:'0.35rem 0.8rem', borderRadius:'99px', fontSize:'0.75rem', fontWeight:700, background:sc.bg, color:sc.c }}>{sc.l}</span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )
       ) : (
         /* ================= KENDARAAN ================= */
         // ... (existing vehicle logic)
@@ -788,6 +938,22 @@ export default function ApprovalsPage() {
               <div style={{ display: 'flex', gap: '1rem' }}>
                 <button type="button" onClick={() => { setRejectingItem(null); setRejectReason(""); }} style={{ flex: 1, padding: '0.75rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', background: 'white', fontWeight: 600, cursor: 'pointer' }}>Batal</button>
                 <button type="submit" disabled={processingId === rejectingItem.id} style={{ flex: 1, padding: '0.75rem', borderRadius: 'var(--radius-md)', border: 'none', background: '#EF4444', color: 'white', fontWeight: 600, cursor: 'pointer' }}>{processingId === rejectingItem.id ? 'Memproses...' : 'Ya, Tolak'}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {rejectingMaint && (
+        <div className={styles.modalOverlay} style={{ zIndex: 3000 }}>
+          <div className={styles.modalContent} style={{ maxWidth: '400px' }}>
+            <h3 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '1rem' }}>Tolak Laporan Pemeliharaan</h3>
+            <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginBottom: '1.5rem' }}>Berikan alasan penolakan untuk laporan <b>"{rejectingMaint.title}"</b>.</p>
+            <form onSubmit={handleRejectMaint}>
+              <textarea required autoFocus value={rejectReason} onChange={e => setRejectReason(e.target.value)} placeholder="Alasan penolakan..." style={{ width: '100%', padding: '0.75rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', minHeight: '100px', fontFamily: 'inherit', marginBottom: '1.5rem' }} />
+              <div style={{ display: 'flex', gap: '1rem' }}>
+                <button type="button" onClick={() => { setRejectingMaint(null); setRejectReason(""); }} style={{ flex: 1, padding: '0.75rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', background: 'white', fontWeight: 600, cursor: 'pointer' }}>Batal</button>
+                <button type="submit" disabled={processingId === rejectingMaint.id} style={{ flex: 1, padding: '0.75rem', borderRadius: 'var(--radius-md)', border: 'none', background: '#EF4444', color: 'white', fontWeight: 600, cursor: 'pointer' }}>{processingId === rejectingMaint.id ? 'Memproses...' : 'Ya, Tolak'}</button>
               </div>
             </form>
           </div>

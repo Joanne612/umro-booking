@@ -73,7 +73,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </Link>
           )}
 
-          {(userRole === "staff_umum") && (
+          {(userRole === "staff_umum" || userRole === "asman") && (
             <Link
               href="/dashboard/maintenance-requests"
               className={`${styles.navItem} ${pathname === "/dashboard/maintenance-requests" ? styles.active : ""}`}

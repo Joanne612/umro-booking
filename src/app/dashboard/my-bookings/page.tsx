@@ -12,24 +12,30 @@ import {
   subscribeToAllBookings,
   subscribeToAllVehicles,
   subscribeToAllItems,
+  subscribeToUserMaintenanceRequests,
+  subscribeToAllMaintenanceRequests,
   cancelBooking,
   cancelBookingSeries,
   initAndGetRooms,
   cancelVehicleBooking,
   deleteItemRequest,
+  deleteMaintenanceRequest,
+  updateMaintenanceRequest,
   BookingData,
   Room,
   VehicleBooking,
-  ItemRequest
+  ItemRequest,
+  MaintenanceRequest
 } from "@/lib/firebase/firestore";
 import { useToast } from "@/context/ToastContext";
 import BookingModal from "@/components/BookingModal";
 import VehicleBookingModal from "@/components/VehicleBookingModal";
 import ItemRequestModal from "@/components/ItemRequestModal";
+import MaintenanceRequestModal from "@/components/MaintenanceRequestModal";
 import ConfirmationModal from "@/components/ConfirmationModal";
 import styles from "../dashboard.module.css";
 
-type TabType = "meeting" | "zoom" | "vehicle" | "item";
+type TabType = "meeting" | "zoom" | "vehicle" | "item" | "maintenance";
 
 export default function MyBookingsPage() {
   const { user, userRole } = useAuth();
@@ -40,6 +46,7 @@ export default function MyBookingsPage() {
   const [roomBookings, setRoomBookings] = useState<BookingData[]>([]);
   const [vehicles, setVehicles] = useState<VehicleBooking[]>([]);
   const [items, setItems] = useState<ItemRequest[]>([]);
+  const [maintenanceRequests, setMaintenanceRequests] = useState<MaintenanceRequest[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -52,9 +59,11 @@ export default function MyBookingsPage() {
   const [isRoomModalOpen, setIsRoomModalOpen] = useState(false);
   const [isVehicleModalOpen, setIsVehicleModalOpen] = useState(false);
   const [isItemModalOpen, setIsItemModalOpen] = useState(false);
+  const [isMaintModalOpen, setIsMaintModalOpen] = useState(false);
   const [selectedRoomBooking, setSelectedRoomBooking] = useState<BookingData | null>(null);
   const [vehicleToEdit, setVehicleToEdit] = useState<VehicleBooking | null>(null);
   const [selectedItem, setSelectedItem] = useState<ItemRequest | null>(null);
+  const [selectedMaint, setSelectedMaint] = useState<MaintenanceRequest | null>(null);
 
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [itemToCancel, setItemToCancel] = useState<{ id: string; type: TabType; groupId?: string } | null>(null);
@@ -86,13 +95,18 @@ export default function MyBookingsPage() {
       : subscribeToUserVehicles(user.uid, (data) => setVehicles(data));
 
     const unsubItems = userRole === "admin"
-      ? subscribeToAllItems((data) => { setItems(data); setLoading(false); })
-      : subscribeToUserItems(user.uid, (data) => { setItems(data); setLoading(false); });
+      ? subscribeToAllItems((data) => { setItems(data); })
+      : subscribeToUserItems(user.uid, (data) => { setItems(data); });
+
+    const unsubMaint = userRole === "admin"
+      ? subscribeToAllMaintenanceRequests((data) => { setMaintenanceRequests(data); setLoading(false); })
+      : subscribeToUserMaintenanceRequests(user.uid, (data) => { setMaintenanceRequests(data); setLoading(false); });
 
     return () => {
       unsubRooms();
       unsubVehicles();
       unsubItems();
+      unsubMaint();
     };
   }, [user]);
 
@@ -238,16 +252,42 @@ export default function MyBookingsPage() {
         case "item":
           await deleteItemRequest(itemToCancel.id);
           break;
+        case "maintenance":
+          await deleteMaintenanceRequest(itemToCancel.id);
+          break;
       }
-      showToast("Pemesanan telah dibatalkan.", "success");
+      showToast("Permintaan telah dihapus.", "success");
       setIsConfirmOpen(false);
       fetchData();
     } catch (error: any) {
-      showToast("Gagal membatalkan: " + error.message, "error");
+      showToast("Gagal menghapus: " + error.message, "error");
     } finally {
       setCancelling(false);
     }
   };
+
+  const MAINT_CATEGORY_ICON: Record<string, string> = {
+    "Pemeliharaan AC": "❄️",
+    "Pemeliharaan Gedung": "🏢",
+    "Pemeliharaan Listrik": "⚡",
+    "Pemeliharaan Plumbing": "🔧",
+    "Lainnya": "📋",
+  };
+  const MAINT_PRIORITY_COLOR: Record<string, string> = {
+    "Rendah": "#16a34a", "Sedang": "#d97706", "Tinggi": "#ea580c", "Darurat": "#dc2626",
+  };
+  const MAINT_PRIORITY_BG: Record<string, string> = {
+    "Rendah": "#dcfce7", "Sedang": "#fef3c7", "Tinggi": "#ffedd5", "Darurat": "#fee2e2",
+  };
+
+  const filteredMaintenance = maintenanceRequests.filter(m => {
+    const isStatusMatch = filterStatus === "all" || m.status === filterStatus;
+    const searchMatch = !searchQuery ||
+      m.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (m.userName || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (m.location || "").toLowerCase().includes(searchQuery.toLowerCase());
+    return isStatusMatch && searchMatch;
+  });
 
   if (loading) return <div style={{ padding: '2rem' }}>Memuat riwayat pemesanan...</div>;
 
@@ -260,10 +300,11 @@ export default function MyBookingsPage() {
 
       {/* Tabs */}
       <div className={styles.tabsContainer}>
-        <button onClick={() => setActiveTab('meeting')} className={`${styles.tabButton} ${activeTab === 'meeting' ? styles.active : ""}`}>🏢 Ruang Meeting</button>
-        <button onClick={() => setActiveTab('zoom')} className={`${styles.tabButton} ${activeTab === 'zoom' ? styles.active : ""}`}>💻 Zoom Meeting</button>
-        <button onClick={() => setActiveTab('vehicle')} className={`${styles.tabButton} ${activeTab === 'vehicle' ? styles.active : ""}`}>🚗 Peminjaman Kendaraan</button>
-        <button onClick={() => setActiveTab('item')} className={`${styles.tabButton} ${activeTab === 'item' ? styles.active : ""}`}>📦 Permintaan Barang</button>
+        <button onClick={() => { setActiveTab('meeting'); setFilterStatus('all'); }} className={`${styles.tabButton} ${activeTab === 'meeting' ? styles.active : ""}`}>🏢 Ruang Meeting</button>
+        <button onClick={() => { setActiveTab('zoom'); setFilterStatus('all'); }} className={`${styles.tabButton} ${activeTab === 'zoom' ? styles.active : ""}`}>💻 Zoom Meeting</button>
+        <button onClick={() => { setActiveTab('vehicle'); setFilterStatus('all'); }} className={`${styles.tabButton} ${activeTab === 'vehicle' ? styles.active : ""}`}>🚗 Peminjaman Kendaraan</button>
+        <button onClick={() => { setActiveTab('item'); setFilterStatus('all'); }} className={`${styles.tabButton} ${activeTab === 'item' ? styles.active : ""}`}>📦 Permintaan Barang</button>
+        <button onClick={() => { setActiveTab('maintenance'); setFilterStatus('all'); }} className={`${styles.tabButton} ${activeTab === 'maintenance' ? styles.active : ""}`}>🔧 Pemeliharaan</button>
       </div>
 
       {/* Filter & Search UI */}
@@ -302,6 +343,13 @@ export default function MyBookingsPage() {
             <>
               <option value="pending">Menunggu Validasi</option>
               <option value="approved">Disetujui</option>
+              <option value="rejected">Ditolak</option>
+            </>
+          ) : activeTab === 'maintenance' ? (
+            <>
+              <option value="pending">Menunggu</option>
+              <option value="in_progress">Sedang Dikerjakan</option>
+              <option value="completed">Selesai</option>
               <option value="rejected">Ditolak</option>
             </>
           ) : (
@@ -646,6 +694,75 @@ export default function MyBookingsPage() {
           )
         )}
 
+        {/* Render Maintenance */}
+        {activeTab === 'maintenance' && (
+          filteredMaintenance.length === 0 ? (
+            <div className={styles.emptyState}>
+              <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🔧</div>
+              <h3>Belum ada laporan pemeliharaan</h3>
+              <p>Laporan gangguan fasilitas yang Anda buat akan muncul di sini.</p>
+            </div>
+          ) : (
+            filteredMaintenance.map(m => {
+              const statusConfig: Record<string, { label: string; bg: string; color: string; border: string }> = {
+                pending:     { label: '⌛ MENUNGGU',          bg: '#FEF3C7', color: '#92400E', border: '#FDE68A' },
+                in_progress: { label: '🔄 SEDANG DIKERJAKAN', bg: '#DBEAFE', color: '#1E40AF', border: '#BFDBFE' },
+                completed:   { label: '✓ SELESAI',            bg: '#D1FAE5', color: '#065F46', border: '#A7F3D0' },
+                rejected:    { label: '✗ DITOLAK',            bg: '#FEE2E2', color: '#991B1B', border: '#FECACA' },
+              };
+              const sc = statusConfig[m.status] || statusConfig.pending;
+              const borderColor = m.status === 'completed' ? '#10B981' : m.status === 'in_progress' ? '#3B82F6' : m.status === 'rejected' ? '#EF4444' : '#F59E0B';
+              return (
+                <div key={m.id} className={styles.card} style={{ borderLeft: `4px solid ${borderColor}` }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
+                    <div style={{ flex: 1 }}>
+                      {m.ticketId && (
+                        <div style={{ fontSize: '0.75rem', fontFamily: 'monospace', color: '#475569', marginBottom: '0.6rem', fontWeight: 700, background: '#F1F5F9', padding: '0.3rem 0.7rem', borderRadius: '4px', border: '1px dashed #CBD5E1', display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <span>🎫</span> #{m.ticketId}
+                        </div>
+                      )}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem', flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: '1.1rem' }}>{MAINT_CATEGORY_ICON[m.category] || '🔧'}</span>
+                        <h4 style={{ fontSize: '1.1rem', fontWeight: 700 }}>{m.title}</h4>
+                      </div>
+                      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
+                        <span style={{ fontSize: '0.65rem', padding: '0.25rem 0.75rem', borderRadius: '99px', fontWeight: 700, textTransform: 'uppercase', background: MAINT_PRIORITY_BG[m.priority] || '#F1F5F9', color: MAINT_PRIORITY_COLOR[m.priority] || '#475569', border: `1px solid ${MAINT_PRIORITY_COLOR[m.priority] || '#CBD5E1'}` }}>
+                          {m.priority}
+                        </span>
+                        <span style={{ fontSize: '0.65rem', padding: '0.25rem 0.75rem', borderRadius: '99px', fontWeight: 700, textTransform: 'uppercase', background: '#F1F5F9', color: '#475569', border: '1px solid #E2E8F0' }}>
+                          {m.category}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: '0.875rem', color: 'var(--text-muted)', display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                        <div>📍 <b style={{ color: 'var(--foreground)' }}>{m.location}</b></div>
+                        <div>📅 Dilaporkan: <b style={{ color: 'var(--foreground)' }}>{m.createdAt?.toDate ? m.createdAt.toDate().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : '-'}</b></div>
+                      </div>
+                      <div style={{ marginTop: '0.75rem' }}>
+                        <span style={{ fontSize: '0.65rem', padding: '0.3rem 0.9rem', borderRadius: '99px', fontWeight: 800, textTransform: 'uppercase', background: sc.bg, color: sc.color, border: `1px solid ${sc.border}` }}>
+                          {sc.label}
+                        </span>
+                        {m.status === 'rejected' && m.rejectReason && (
+                          <p style={{ fontSize: '0.8rem', color: '#991B1B', fontStyle: 'italic', marginTop: '0.4rem' }}>Alasan: {m.rejectReason}</p>
+                        )}
+                      </div>
+                    </div>
+                    {m.status === 'pending' && (
+                      <div className={styles.rowActions}>
+                        <button onClick={() => { setSelectedMaint(m); setIsMaintModalOpen(true); }} className={styles.btnEdit} style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                          <span>📝</span> Edit
+                        </button>
+                        <button onClick={() => openCancelConfirm(m.id!, 'maintenance')} className={styles.btnCancel} style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                          <span>🗑️</span> Hapus
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })
+          )
+        )}
+
       </div>
 
       {/* Modals */}
@@ -677,14 +794,23 @@ export default function MyBookingsPage() {
         />
       )}
 
+      {isMaintModalOpen && (
+        <MaintenanceRequestModal
+          isOpen={isMaintModalOpen}
+          onClose={() => { setIsMaintModalOpen(false); setSelectedMaint(null); }}
+          onSuccess={() => { setIsMaintModalOpen(false); setSelectedMaint(null); }}
+          editItem={selectedMaint}
+        />
+      )}
+
       {isConfirmOpen && (
         <ConfirmationModal
           isOpen={isConfirmOpen}
           onClose={() => setIsConfirmOpen(false)}
           onConfirm={handleCancelConfirm}
-          title="Konfirmasi Pembatalan"
-          message={`Apakah Anda yakin ingin membatalkan/menghapus ${itemToCancel?.type === 'item' ? 'permintaan' : 'reservasi'} ini?`}
-          confirmLabel="Ya, Batalkan"
+          title={itemToCancel?.type === 'maintenance' ? 'Hapus Laporan Pemeliharaan' : 'Konfirmasi Pembatalan'}
+          message={itemToCancel?.type === 'maintenance' ? 'Apakah Anda yakin ingin menghapus laporan pemeliharaan ini?' : `Apakah Anda yakin ingin membatalkan/menghapus ${itemToCancel?.type === 'item' ? 'permintaan' : 'reservasi'} ini?`}
+          confirmLabel={itemToCancel?.type === 'maintenance' ? 'Ya, Hapus' : 'Ya, Batalkan'}
           isLoading={cancelling}
         />
       )}
