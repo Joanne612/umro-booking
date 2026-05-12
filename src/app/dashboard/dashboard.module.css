@@ -196,6 +196,8 @@
   gap: 2rem;
   flex-wrap: wrap;
   justify-content: center;
+  max-width: 950px; /* forces 3 columns max (280px * 3 + gap) */
+  margin: 0 auto;
 }
 
 .categoryCard {

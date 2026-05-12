@@ -124,6 +124,19 @@ export default function BookingPage() {
                 <h3 style={{ fontSize: '1.25rem', fontWeight: 600 }}>Permintaan Barang</h3>
                 <p style={{ color: 'var(--text-muted)', marginTop: '0.5rem', fontSize: '0.9rem', textAlign: 'center' }}>Pengadaan ATK & Lainnya</p>
               </button>
+
+              {(userRole === "staff_umum" || userRole === "admin") && (
+                <button
+                  onClick={() => router.push('/dashboard/maintenance-requests')}
+                  className={styles.categoryCard}
+                >
+                  <div className={styles.categoryIcon}>🔧</div>
+                  <h3 style={{ fontSize: '1.25rem', fontWeight: 600 }}>Pemeliharaan Fasilitas</h3>
+                  <p style={{ color: 'var(--text-muted)', marginTop: '0.5rem', fontSize: '0.9rem', textAlign: 'center' }}>
+                    Laporan AC, Gedung & Utilitas
+                  </p>
+                </button>
+              )}
             </>
           )}
         </div>

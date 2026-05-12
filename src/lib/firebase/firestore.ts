@@ -1,5 +1,5 @@
-import { 
-  collection, addDoc, query, where, getDocs, Timestamp, onSnapshot, doc, getDoc, 
+import {
+  collection, addDoc, query, where, getDocs, Timestamp, onSnapshot, doc, getDoc,
   setDoc, updateDoc, deleteDoc, orderBy, limit, getCountFromServer, or
 } from "firebase/firestore";
 import { db } from "./config";
@@ -11,9 +11,9 @@ export interface BookingData {
   roomName: string;
   title: string;
   division: string;
-  date: string; 
-  startTime: string; 
-  endTime: string; 
+  date: string;
+  startTime: string;
+  endTime: string;
   participants: number;
   userId: string;
   userName: string;
@@ -110,6 +110,130 @@ export interface ItemRequest {
   rejectReason?: string;
 }
 
+// ─── Tambahkan interface ini ke firestore.ts setelah interface ItemRequest ───
+
+export interface MaintenanceRequest {
+  id?: string;
+  userId: string;
+  userName: string;
+  division: string;
+  category:
+  | "Pemeliharaan AC"
+  | "Pemeliharaan Gedung"
+  | "Pemeliharaan Listrik"
+  | "Pemeliharaan Plumbing"
+  | "Lainnya";
+  priority: "Rendah" | "Sedang" | "Tinggi" | "Darurat";
+  title: string;
+  location: string;
+  description: string;
+  photoUrls: string[];
+  status: "pending" | "approved" | "in_progress" | "completed" | "rejected";
+  createdAt: any;
+  ticketId?: string;
+  asmanApprovedBy?: string;
+  asmanApprovedByName?: string;
+  asmanApprovalDate?: any;
+  staffProcessedBy?: string;
+  staffProcessedByName?: string;
+  staffCompletedDate?: any;
+  rejectReason?: string;
+  estimatedCompletionDate?: string;
+  notes?: string;
+}
+
+// ─── Tambahkan fungsi-fungsi ini ke firestore.ts ─────────────────────────────
+
+// Fungsi helper generate ticket ID (mirip createItemRequest)
+const generateMaintenanceTicketId = async (): Promise<string> => {
+  if (!db) throw new Error("Firestore not initialized");
+  const dateStr = new Date().toISOString().slice(2, 10).replace(/-/g, ""); // YYMMDD
+  const prefix = `MNT-${dateStr}-`;
+  const q = query(
+    collection(db, "maintenance_requests"),
+    where("ticketId", ">=", prefix),
+    where("ticketId", "<", prefix + "\uf8ff")
+  );
+  const snap = await getDocs(q);
+  const nextNum = (snap.size + 1).toString().padStart(3, "0");
+  return `${prefix}${nextNum}`;
+};
+
+export const createMaintenanceRequest = async (
+  data: Omit<MaintenanceRequest, "status" | "createdAt">
+) => {
+  if (!db) throw new Error("Firestore not initialized");
+  const ticketId = await generateMaintenanceTicketId();
+  await addDoc(collection(db, "maintenance_requests"), {
+    ...data,
+    ticketId,
+    status: "pending",
+    createdAt: Timestamp.now(),
+  });
+};
+
+export const updateMaintenanceRequest = async (
+  id: string,
+  data: Partial<
+    Omit<MaintenanceRequest, "id" | "status" | "createdAt" | "userId" | "userName">
+  >
+) => {
+  if (!db) return;
+  const ref = doc(db, "maintenance_requests", id);
+  await updateDoc(ref, data);
+};
+
+export const getUserMaintenanceRequests = async (
+  userId: string
+): Promise<MaintenanceRequest[]> => {
+  if (!db) return [];
+  const q = query(
+    collection(db, "maintenance_requests"),
+    where("userId", "==", userId),
+    orderBy("createdAt", "desc")
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as MaintenanceRequest));
+};
+
+export const getMaintenanceRequestsByStatus = async (
+  statuses: string[]
+): Promise<MaintenanceRequest[]> => {
+  if (!db) return [];
+  const q = query(
+    collection(db, "maintenance_requests"),
+    where("status", "in", statuses),
+    orderBy("createdAt", "desc")
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as MaintenanceRequest));
+};
+
+export const updateMaintenanceRequestStatus = async (
+  id: string,
+  status: MaintenanceRequest["status"],
+  extra?: Record<string, any>
+) => {
+  if (!db) return;
+  const ref = doc(db, "maintenance_requests", id);
+  await updateDoc(ref, { status, ...extra });
+};
+
+export const subscribeToMaintenanceRequests = (
+  statuses: string[],
+  callback: (data: MaintenanceRequest[]) => void
+) => {
+  if (!db) return () => {};
+  const q = query(
+    collection(db, "maintenance_requests"),
+    where("status", "in", statuses),
+    orderBy("createdAt", "desc")
+  );
+  return onSnapshot(q, (snap) => {
+    callback(snap.docs.map((d) => ({ id: d.id, ...d.data() } as MaintenanceRequest)));
+  });
+};
+
 export interface UserRole {
   uid: string;
   email: string;
@@ -191,7 +315,7 @@ export const syncUserToFirestore = async (user: FirebaseUser) => {
   if (!db) return;
   const userRef = doc(db, "users", user.uid);
   const snap = await getDoc(userRef);
-  
+
   if (snap.exists()) {
     const userData = snap.data();
     // Re-verify driver link just in case
@@ -240,6 +364,70 @@ export const deleteUserAccount = async (uid: string) => {
   await deleteDoc(doc(db, "users", uid));
 };
 
+// Admin: Create user account with email & password
+// This stores user data in Firestore; Firebase Auth account is created client-side
+export const createUserInFirestore = async (
+  uid: string,
+  name: string,
+  email: string,
+  role: "admin" | "asman" | "koordinator_driver" | "staff_umum" | "user" | "view" | "driver" = "user"
+) => {
+  if (!db) return;
+  const emailLower = email.toLowerCase();
+
+  // Check if driver data exists for this email
+  let assignedRole: typeof role = role;
+  const driversRef = collection(db, "drivers");
+  const q = query(driversRef, where("email", "==", emailLower));
+  const driverSnap = await getDocs(q);
+  if (!driverSnap.empty && role === "user") {
+    assignedRole = "driver";
+    await updateDoc(driverSnap.docs[0].ref, { uid });
+  }
+
+  await setDoc(doc(db, "users", uid), {
+    uid,
+    email: emailLower,
+    name,
+    role: assignedRole,
+    createdAt: new Date().toISOString(),
+  });
+  return assignedRole;
+};
+
+// Login user: verify credentials stored in Firestore (called after Firebase Auth signIn)
+export const loginUserWithEmailPassword = async (uid: string, email: string) => {
+  if (!db) return "user";
+  const userRef = doc(db, "users", uid);
+  const snap = await getDoc(userRef);
+
+  if (snap.exists()) {
+    const userData = snap.data();
+    // Re-check driver link
+    if (email && userData.role === "driver") {
+      const driversRef = collection(db, "drivers");
+      const q = query(driversRef, where("email", "==", email.toLowerCase()));
+      const dSnap = await getDocs(q);
+      if (!dSnap.empty && !dSnap.docs[0].data().uid) {
+        await updateDoc(dSnap.docs[0].ref, { uid });
+      }
+    }
+    return userData.role as string;
+  }
+
+  // Fallback: new user not registered by admin
+  return null; // null means not registered
+};
+
+// Get user display info from Firestore
+export const getUserInfo = async (uid: string) => {
+  if (!db) return null;
+  const userRef = doc(db, "users", uid);
+  const snap = await getDoc(userRef);
+  if (snap.exists()) return snap.data();
+  return null;
+};
+
 // Admin: Get all users for management
 export const getAllUsers = async (): Promise<UserRole[]> => {
   if (!db) return [];
@@ -268,7 +456,7 @@ export const initAndGetRooms = async (): Promise<Room[]> => {
   if (!db) return [];
   const roomsRef = collection(db, "rooms");
   const snap = await getDocs(roomsRef);
-  
+
   return snap.docs.map(doc => doc.data() as Room);
 };
 
@@ -289,16 +477,16 @@ export const updateRoom = async (roomId: string, updates: Partial<Pick<Room, 'na
 // Admin: Delete room with safety check
 export const deleteRoom = async (roomId: string) => {
   if (!db) throw new Error("Firestore not initialized");
-  
+
   // Check for active reservations
   const bookingsRef = collection(db, "bookings");
   const q = query(bookingsRef, where("roomId", "==", roomId), where("status", "==", "active"));
   const snap = await getDocs(q);
-  
+
   if (!snap.empty) {
     throw new Error("Tidak dapat menghapus ruangan karena masih ada reservasi aktif di ruangan ini.");
   }
-  
+
   await deleteDoc(doc(db, "rooms", roomId));
 };
 
@@ -308,7 +496,7 @@ export const getDatesInRange = (startDate: string, endDate: string): string[] =>
   const dates: string[] = [];
   let curr = new Date(startDate);
   const last = new Date(endDate);
-  
+
   while (curr <= last) {
     dates.push(curr.toISOString().split('T')[0]);
     curr.setDate(curr.getDate() + 1);
@@ -319,18 +507,18 @@ export const getDatesInRange = (startDate: string, endDate: string): string[] =>
 // ================= BOOKINGS =================
 
 export const checkBookingConflict = async (
-  roomId: string, 
-  date: string, 
-  startTime: string, 
+  roomId: string,
+  date: string,
+  startTime: string,
   endTime: string,
   excludeBookingId?: string,
   excludeGroupId?: string
 ): Promise<BookingData | null> => {
   if (!db) return null;
-  
+
   const bookingsRef = collection(db, "bookings");
   const q = query(
-    bookingsRef, 
+    bookingsRef,
     where("roomId", "==", roomId),
     where("date", "==", date),
     where("status", "==", "active")
@@ -354,7 +542,7 @@ export const checkBookingConflict = async (
 
 export const createBooking = async (data: Omit<BookingData, "status">) => {
   if (!db) throw new Error("Firestore not initialized");
-  
+
   const conflict = await checkBookingConflict(data.roomId, data.date, data.startTime, data.endTime);
 
   if (conflict) {
@@ -379,14 +567,14 @@ export const updateBooking = async (bookingId: string, data: Partial<BookingData
 };
 
 export const subscribeToBookingsRange = (startDate: string, endDate: string, callback: (bookings: BookingData[]) => void) => {
-  if (!db) return () => {};
-  
-  const q = query(collection(db, "bookings"), 
+  if (!db) return () => { };
+
+  const q = query(collection(db, "bookings"),
     where("status", "==", "active"),
     where("date", ">=", startDate),
     where("date", "<=", endDate)
   );
-  
+
   return onSnapshot(q, (snapshot) => {
     const bookings = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as BookingData));
     callback(bookings);
@@ -394,7 +582,7 @@ export const subscribeToBookingsRange = (startDate: string, endDate: string, cal
 };
 
 export const subscribeToDrivers = (callback: (data: Driver[]) => void) => {
-  if (!db) return () => {};
+  if (!db) return () => { };
   const q = query(collection(db, "drivers"), orderBy("createdAt", "desc"));
   return onSnapshot(q, (snap) => {
     const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Driver));
@@ -410,7 +598,7 @@ export const getUserBookings = async (uid: string): Promise<BookingData[]> => {
 };
 
 export const subscribeToFleet = (callback: (data: FleetVehicle[]) => void) => {
-  if (!db) return () => {};
+  if (!db) return () => { };
   const q = query(collection(db, "fleet_vehicles"), orderBy("createdAt", "desc"));
   return onSnapshot(q, (snap) => {
     const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as FleetVehicle));
@@ -455,7 +643,7 @@ export const getIncompleteZoomBookings = async (): Promise<BookingData[]> => {
       where("status", "==", "active"),
       where("roomId", "in", onlineRoomIds)
     );
-    
+
     const snap = await getDocs(q);
     // Filter manual untuk string kosong atau field tidak ada
     return snap.docs
@@ -494,12 +682,12 @@ export const getPendingConsumptionBookings = async (): Promise<BookingData[]> =>
   const bookingsRef = collection(db, "bookings");
   // Get active bookings that requested consumption and are still pending
   const q = query(
-    bookingsRef, 
+    bookingsRef,
     where("status", "==", "active"),
     where("consumption.requested", "==", true),
     where("consumption.status", "==", "pending")
   );
-  
+
   const snapshot = await getDocs(q);
   return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as BookingData));
 };
@@ -508,12 +696,12 @@ export const getConsumptionHistory = async (): Promise<BookingData[]> => {
   if (!db) return [];
   const bookingsRef = collection(db, "bookings");
   const q = query(
-    bookingsRef, 
+    bookingsRef,
     where("status", "==", "active"),
     where("consumption.requested", "==", true),
     where("consumption.status", "in", ["approved", "rejected", "completed"])
   );
-  
+
   const snapshot = await getDocs(q);
   return snapshot.docs
     .map(doc => ({ id: doc.id, ...doc.data() } as BookingData))
@@ -525,12 +713,12 @@ export const getApprovedConsumptionBookings = async (): Promise<BookingData[]> =
   if (!db) return [];
   const bookingsRef = collection(db, "bookings");
   const q = query(
-    bookingsRef, 
+    bookingsRef,
     where("status", "==", "active"),
     where("consumption.requested", "==", true),
     where("consumption.status", "==", "approved")
   );
-  
+
   const snapshot = await getDocs(q);
   return snapshot.docs
     .map(doc => ({ id: doc.id, ...doc.data() } as BookingData))
@@ -538,19 +726,19 @@ export const getApprovedConsumptionBookings = async (): Promise<BookingData[]> =
 };
 
 export const updateConsumptionStatus = async (
-  bookingId: string, 
-  status: "approved" | "rejected" | "completed", 
-  userId: string, 
+  bookingId: string,
+  status: "approved" | "rejected" | "completed",
+  userId: string,
   userName: string,
   reason?: string
 ) => {
   if (!db) return;
   const bookingRef = doc(db, "bookings", bookingId);
-  
+
   const updates: any = {
     "consumption.status": status,
   };
-  
+
   if (status === "approved" || status === "rejected") {
     updates["consumption.approvedBy"] = userId;
     updates["consumption.approvedByName"] = userName;
@@ -561,7 +749,7 @@ export const updateConsumptionStatus = async (
     updates["consumption.processedByName"] = userName;
     updates["consumption.processedDate"] = Timestamp.now();
   }
-  
+
   await updateDoc(bookingRef, updates);
 };
 
@@ -569,7 +757,7 @@ export const updateConsumptionStatus = async (
 
 export const createVehicleBooking = async (data: Omit<VehicleBooking, "status" | "createdAt">) => {
   if (!db) throw new Error("Firestore not initialized");
-  
+
   const bookingsRef = collection(db, "vehicle_bookings");
   const ticketId = generateTicketId('VB');
   const docRef = await addDoc(bookingsRef, {
@@ -596,12 +784,12 @@ export const getUserVehicleBookings = async (userId: string): Promise<VehicleBoo
 };
 
 export const subscribeToPendingVehicles = (callback: (data: VehicleBooking[]) => void) => {
-  if (!db) return () => {};
+  if (!db) return () => { };
   const q = query(
-    collection(db, "vehicle_bookings"), 
+    collection(db, "vehicle_bookings"),
     where("status", "==", "pending")
   );
-  
+
   return onSnapshot(q, (snap) => {
     const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as VehicleBooking));
     callback(data.sort((a, b) => b.createdAt?.toMillis() - a.createdAt?.toMillis()));
@@ -609,13 +797,13 @@ export const subscribeToPendingVehicles = (callback: (data: VehicleBooking[]) =>
 };
 
 export const subscribeToWaitingAsmanVehicles = (callback: (data: VehicleBooking[]) => void) => {
-  if (!db) return () => {};
+  if (!db) return () => { };
   const q = query(
-    collection(db, "vehicle_bookings"), 
+    collection(db, "vehicle_bookings"),
     where("status", "==", "approved"),
     where("asmanAcknowledge", "==", false)
   );
-  
+
   return onSnapshot(q, (snap) => {
     const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as VehicleBooking));
     callback(data.sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0)));
@@ -623,12 +811,12 @@ export const subscribeToWaitingAsmanVehicles = (callback: (data: VehicleBooking[
 };
 
 export const subscribeToVehicleHistory = (callback: (data: VehicleBooking[]) => void) => {
-  if (!db) return () => {};
+  if (!db) return () => { };
   const q = query(
-    collection(db, "vehicle_bookings"), 
+    collection(db, "vehicle_bookings"),
     where("status", "in", ["waiting_asman", "approved", "rejected"])
   );
-  
+
   return onSnapshot(q, (snap) => {
     const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as VehicleBooking));
     // Sort on client side to avoid manual index creation
@@ -640,7 +828,7 @@ export const subscribeToVehicleHistory = (callback: (data: VehicleBooking[]) => 
 export const getVehicleHistory = async (): Promise<VehicleBooking[]> => {
   if (!db) return [];
   const q = query(
-    collection(db, "vehicle_bookings"), 
+    collection(db, "vehicle_bookings"),
     where("status", "in", ["waiting_asman", "approved", "rejected"]),
     limit(100)
   );
@@ -658,8 +846,8 @@ export const updateVehicleNotes = async (bookingId: string, notes: string) => {
 };
 
 export const validateVehicleBooking = async (
-  bookingId: string, 
-  officerId: string, 
+  bookingId: string,
+  officerId: string,
   officerName: string,
   vehicleNotes: string,
   assignmentData?: {
@@ -678,7 +866,7 @@ export const validateVehicleBooking = async (
 ) => {
   if (!db) return;
   const bookingRef = doc(db, "vehicle_bookings", bookingId);
-  
+
   const updates: any = {
     status: "approved",
     validatedBy: officerId,
@@ -710,7 +898,7 @@ export const validateVehicleBooking = async (
     const tripId = generateTicketId('DT');
     const snap = await getDoc(bookingRef);
     const data = snap.data() as VehicleBooking;
-    
+
     await addDoc(tripsRef, {
       tripId,
       driverId: assignmentData.driverId,
@@ -718,7 +906,7 @@ export const validateVehicleBooking = async (
       driverEmail: assignmentData.driverEmail || "",
       driverUid: assignmentData.driverUid || "",
       plateNumber: assignmentData.plateNumber || "",
-      contact: assignmentData.driverPhone || "", 
+      contact: assignmentData.driverPhone || "",
       vehicleType: assignmentData.vehicleType || "",
       sppd: assignmentData.sppd || "-",
       tripType: assignmentData.tripType || "Perjalanan Dalam Kota",
@@ -727,21 +915,21 @@ export const validateVehicleBooking = async (
       status: "pending",
       createdAt: Timestamp.now(),
       bookingId: bookingId,
-        event: data.event || "",
-        destination: data.destination || "",
-        userName: data.userName || "",
-        userPhone: data.userPhone || "",
-        pickupTime: data.pickupTime || "",
-        pickupLocation: data.pickupLocation || "",
-        passengers: data.passengers || 0,
+      event: data.event || "",
+      destination: data.destination || "",
+      userName: data.userName || "",
+      userPhone: data.userPhone || "",
+      pickupTime: data.pickupTime || "",
+      pickupLocation: data.pickupLocation || "",
+      passengers: data.passengers || 0,
       tripOption: data.tripType === "pp" ? "Pulang Pergi" : "Satu Arah"
     });
   }
 };
 
 export const acknowledgeVehicleBooking = async (
-  bookingId: string, 
-  officerId: string, 
+  bookingId: string,
+  officerId: string,
   officerName: string
 ) => {
   if (!db) return;
@@ -755,26 +943,26 @@ export const acknowledgeVehicleBooking = async (
 };
 
 export const updateVehicleBookingStatus = async (
-  bookingId: string, 
-  status: "approved" | "rejected", 
-  officerId: string, 
+  bookingId: string,
+  status: "approved" | "rejected",
+  officerId: string,
   officerName: string,
   reason?: string,
   vehicleNotes?: string
 ) => {
   if (!db) return;
   const bookingRef = doc(db, "vehicle_bookings", bookingId);
-  
+
   const updates: any = {
     status: status,
     approvedBy: officerId,
     approvedByName: officerName,
     approvalDate: Timestamp.now()
   };
-  
+
   if (reason) updates.rejectReason = reason;
   if (vehicleNotes) updates.vehicleNotes = vehicleNotes;
-  
+
   await updateDoc(bookingRef, updates);
 };
 
@@ -814,7 +1002,7 @@ export const updateVehicleBooking = async (id: string, data: Partial<Omit<Vehicl
 export const getUserItemRequests = async (userId: string): Promise<ItemRequest[]> => {
   if (!db) return [];
   const q = query(
-    collection(db, "item_requests"), 
+    collection(db, "item_requests"),
     where("userId", "==", userId),
     limit(100)
   );
@@ -831,7 +1019,7 @@ export const getUserItemRequests = async (userId: string): Promise<ItemRequest[]
 export const getItemRequestsByStatus = async (statuses: string[]): Promise<ItemRequest[]> => {
   if (!db) return [];
   const q = query(
-    collection(db, "item_requests"), 
+    collection(db, "item_requests"),
     where("status", "in", statuses),
     limit(100)
   );
@@ -846,17 +1034,17 @@ export const getItemRequestsByStatus = async (statuses: string[]): Promise<ItemR
 };
 
 export const updateItemRequestStatus = async (
-  requestId: string, 
-  status: "approved" | "rejected" | "completed", 
-  officerId: string, 
+  requestId: string,
+  status: "approved" | "rejected" | "completed",
+  officerId: string,
   officerName: string,
   reason?: string
 ) => {
   if (!db) return;
   const requestRef = doc(db, "item_requests", requestId);
-  
+
   const updates: any = { status };
-  
+
   if (status === "approved" || status === "rejected") {
     updates.asmanApprovedBy = officerId;
     updates.asmanApprovedByName = officerName;
@@ -867,7 +1055,7 @@ export const updateItemRequestStatus = async (
     updates.staffProcessedByName = officerName;
     updates.staffProcessedDate = Timestamp.now();
   }
-  
+
   await updateDoc(requestRef, updates);
 };
 
@@ -879,7 +1067,7 @@ export const deleteItemRequest = async (requestId: string) => {
 export const getPendingVehicleBookings = async (): Promise<VehicleBooking[]> => {
   if (!db) return [];
   const q = query(
-    collection(db, "vehicle_bookings"), 
+    collection(db, "vehicle_bookings"),
     where("status", "==", "pending")
   );
   const snap = await getDocs(q);
@@ -887,7 +1075,7 @@ export const getPendingVehicleBookings = async (): Promise<VehicleBooking[]> => 
 };
 
 export const subscribeToUserBookings = (uid: string, callback: (data: BookingData[]) => void) => {
-  if (!db) return () => {};
+  if (!db) return () => { };
   const q = query(collection(db, "bookings"), where("userId", "==", uid));
   return onSnapshot(q, (snap) => {
     const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as BookingData));
@@ -896,7 +1084,7 @@ export const subscribeToUserBookings = (uid: string, callback: (data: BookingDat
 };
 
 export const subscribeToAllBookings = (callback: (data: BookingData[]) => void) => {
-  if (!db) return () => {};
+  if (!db) return () => { };
   const q = query(collection(db, "bookings"));
   return onSnapshot(q, (snap) => {
     const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as BookingData));
@@ -905,7 +1093,7 @@ export const subscribeToAllBookings = (callback: (data: BookingData[]) => void) 
 };
 
 export const subscribeToUserVehicles = (uid: string, callback: (data: VehicleBooking[]) => void) => {
-  if (!db) return () => {};
+  if (!db) return () => { };
   const q = query(collection(db, "vehicle_bookings"), where("userId", "==", uid));
   return onSnapshot(q, (snap) => {
     const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as VehicleBooking));
@@ -914,7 +1102,7 @@ export const subscribeToUserVehicles = (uid: string, callback: (data: VehicleBoo
 };
 
 export const subscribeToAllVehicles = (callback: (data: VehicleBooking[]) => void) => {
-  if (!db) return () => {};
+  if (!db) return () => { };
   const q = query(collection(db, "vehicle_bookings"));
   return onSnapshot(q, (snap) => {
     const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as VehicleBooking));
@@ -923,7 +1111,7 @@ export const subscribeToAllVehicles = (callback: (data: VehicleBooking[]) => voi
 };
 
 export const subscribeToUserItems = (uid: string, callback: (data: ItemRequest[]) => void) => {
-  if (!db) return () => {};
+  if (!db) return () => { };
   const q = query(collection(db, "item_requests"), where("userId", "==", uid));
   return onSnapshot(q, (snap) => {
     const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as ItemRequest));
@@ -932,7 +1120,7 @@ export const subscribeToUserItems = (uid: string, callback: (data: ItemRequest[]
 };
 
 export const subscribeToAllItems = (callback: (data: ItemRequest[]) => void) => {
-  if (!db) return () => {};
+  if (!db) return () => { };
   const q = query(collection(db, "item_requests"));
   return onSnapshot(q, (snap) => {
     const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as ItemRequest));
@@ -943,7 +1131,7 @@ export const subscribeToAllItems = (callback: (data: ItemRequest[]) => void) => 
 export const getWaitingAsmanVehicleBookings = async (): Promise<VehicleBooking[]> => {
   if (!db) return [];
   const q = query(
-    collection(db, "vehicle_bookings"), 
+    collection(db, "vehicle_bookings"),
     where("status", "==", "waiting_asman")
   );
   const snap = await getDocs(q);
@@ -959,7 +1147,7 @@ export const acknowledgeReschedule = async (bookingId: string) => {
 // ================= DASHBOARD STATS =================
 
 export const subscribeToRescheduledBookings = (callback: (data: BookingData[]) => void) => {
-  if (!db) return () => {};
+  if (!db) return () => { };
   const q = query(
     collection(db, "bookings"),
     where("status", "==", "active"),
@@ -969,7 +1157,7 @@ export const subscribeToRescheduledBookings = (callback: (data: BookingData[]) =
   return onSnapshot(q, (snap) => {
     // Filter secara client jika perlu, tapi query di atas sudah spesifik
     const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as BookingData));
-    
+
     // Sort descending by date
     const sorted = data.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     callback(sorted);
@@ -977,9 +1165,9 @@ export const subscribeToRescheduledBookings = (callback: (data: BookingData[]) =
 };
 
 export const subscribeToPendingConsumption = (callback: (data: BookingData[]) => void) => {
-  if (!db) return () => {};
+  if (!db) return () => { };
   const q = query(
-    collection(db, "bookings"), 
+    collection(db, "bookings"),
     where("status", "==", "pending")
   );
   return onSnapshot(q, (snap) => {
@@ -989,9 +1177,9 @@ export const subscribeToPendingConsumption = (callback: (data: BookingData[]) =>
 };
 
 export const subscribeToApprovedConsumption = (callback: (data: BookingData[]) => void) => {
-  if (!db) return () => {};
+  if (!db) return () => { };
   const q = query(
-    collection(db, "bookings"), 
+    collection(db, "bookings"),
     where("status", "==", "approved")
   );
   return onSnapshot(q, (snap) => {
@@ -1001,9 +1189,9 @@ export const subscribeToApprovedConsumption = (callback: (data: BookingData[]) =
 };
 
 export const subscribeToPendingItemRequests = (status: string[], callback: (data: ItemRequest[]) => void) => {
-  if (!db) return () => {};
+  if (!db) return () => { };
   const q = query(
-    collection(db, "item_requests"), 
+    collection(db, "item_requests"),
     where("status", "in", status)
   );
   return onSnapshot(q, (snap) => {
@@ -1013,19 +1201,19 @@ export const subscribeToPendingItemRequests = (status: string[], callback: (data
 };
 
 export const subscribeToIncompleteZoom = (callback: (data: BookingData[]) => void) => {
-  if (!db) return () => {};
-  
+  if (!db) return () => { };
+
   // Mengambil semua booking aktif dan memfilter di client side
   // untuk memastikan booking dengan meetingLink undefined atau "" tertangkap,
   // termasuk memfilter ruangan online/hybrid.
   const q = query(
-    collection(db, "bookings"), 
+    collection(db, "bookings"),
     where("status", "==", "active")
   );
-  
+
   return onSnapshot(q, (snap) => {
     const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as BookingData));
-    
+
     const incompleteZoom = data.filter(b => {
       const isZoomOrHybrid = (b.roomName && b.roomName.toLowerCase().includes('zoom')) || b.isHybrid;
       const hasNoLink = !b.meetingLink || b.meetingLink.trim() === "";
@@ -1034,7 +1222,7 @@ export const subscribeToIncompleteZoom = (callback: (data: BookingData[]) => voi
 
     // Urutkan berdasarkan waktu pembuatan terbaru
     incompleteZoom.sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
-    
+
     callback(incompleteZoom);
   });
 };
@@ -1059,9 +1247,9 @@ export const getDashboardStats = async (userId: string, userRole: string) => {
     );
     const bookingsSnap = await getDocs(bookingsQ);
     const allActiveBookings = bookingsSnap.docs.map(doc => doc.data() as BookingData);
-    
+
     // Filter by date range in memory
-    const allBookings = allActiveBookings.filter(b => 
+    const allBookings = allActiveBookings.filter(b =>
       b.date >= firstDay && b.date <= lastDay
     );
     const userBookings = allBookings.filter(b => b.userId === userId);
@@ -1069,7 +1257,7 @@ export const getDashboardStats = async (userId: string, userRole: string) => {
     // 2. Pending Tasks Counts (Using getCountFromServer for efficiency)
     let pendingConsCount = 0;
     const isExecutionRole = userRole === "staff_umum";
-    
+
     // Consumption count
     if (canSeeGlobalCons) {
       const statusToFetch = isExecutionRole ? "approved" : "pending";
@@ -1117,7 +1305,7 @@ export const getDashboardStats = async (userId: string, userRole: string) => {
       } else if (userRole === "asman") {
         q = query(vehiclesRef, where("status", "==", "approved"), where("asmanAcknowledge", "==", false));
       }
-      
+
       if (q) {
         const countSnap = await getCountFromServer(q);
         pendingVehiclesCount = countSnap.data().count;
@@ -1132,7 +1320,7 @@ export const getDashboardStats = async (userId: string, userRole: string) => {
     const roomsRef = collection(db, "rooms");
     const roomsSnap = await getDocs(roomsRef);
     const allRooms = roomsSnap.docs.map(doc => doc.data() as Room);
-    
+
     const physicalRooms = allRooms.filter(r => r.type === "physical");
     const roomUsage = physicalRooms.map(room => {
       return {
@@ -1287,21 +1475,21 @@ export const getDriverByEmail = async (email: string): Promise<Driver | null> =>
 };
 
 export const subscribeToAssignedTrips = (uid: string, email: string | null, callback: (data: DriverTrip[]) => void) => {
-  if (!db || !uid) return () => {};
-  
-  const q = email ? 
+  if (!db || !uid) return () => { };
+
+  const q = email ?
     query(
-      collection(db, "driver_trips"), 
+      collection(db, "driver_trips"),
       or(
         where("driverUid", "==", uid),
         where("driverEmail", "==", email.toLowerCase())
       )
     ) :
     query(
-      collection(db, "driver_trips"), 
+      collection(db, "driver_trips"),
       where("driverUid", "==", uid)
     );
-    
+
   return onSnapshot(q, (snap) => {
     const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as DriverTrip));
     // Client-side sorting by createdAt desc
@@ -1350,9 +1538,9 @@ export const getDriverTrips = async (): Promise<DriverTrip[]> => {
 };
 
 export const subscribeToDriverTrips = (callback: (data: DriverTrip[]) => void) => {
-  if (!db) return () => {};
+  if (!db) return () => { };
   const q = query(collection(db, "driver_trips"), orderBy("createdAt", "desc"));
-  
+
   return onSnapshot(q, (snap) => {
     const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as DriverTrip));
     callback(data);

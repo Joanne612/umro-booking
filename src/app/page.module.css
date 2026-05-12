@@ -1,13 +1,14 @@
+/* ─── Layout ─────────────────────────────────────────────────────────────── */
 .container {
   display: flex;
   min-height: 100vh;
   width: 100%;
 }
 
+/* ─── Left decorative panel ──────────────────────────────────────────────── */
 .leftPanel {
-  flex: 1;
-  background: linear-gradient(135deg, #13878F 0%, #20757a 100%);
-  /* Tosca cerah */
+  flex: 1.1;
+  background: linear-gradient(145deg, #0d6b72 0%, #13878f 50%, #1a9ba4 100%);
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -21,74 +22,107 @@
 .leftPanel::before {
   content: "";
   position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  inset: 0;
   background-image: url('https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&q=80&w=1200');
-  /* Abstract corporate meeting room */
   background-size: cover;
   background-position: center;
-  opacity: 0.2;
-  mix-blend-mode: overlay;
+  opacity: 0.12;
+}
+
+/* Decorative circles */
+.leftPanel::after {
+  content: "";
+  position: absolute;
+  width: 500px;
+  height: 500px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 255, 255, 0.1);
+  bottom: -150px;
+  right: -150px;
+  pointer-events: none;
 }
 
 .branding {
   position: relative;
   z-index: 10;
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(10px);
-  padding: 3rem;
-  border-radius: var(--radius-lg);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  box-shadow: var(--shadow-lg);
-  max-width: 800px;
+  max-width: 460px;
+  width: 100%;
 }
 
-.logoWrapper {
-  display: flex;
-  align-items: center;
-  gap: 2.5rem;
-  text-align: left;
+.brandingTop {
+  margin-bottom: 2rem;
 }
 
 .plnLogo {
-  width: 140px;
+  width: 90px;
   height: auto;
-  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.2));
-  animation: fadeInLeft 0.8s ease;
+  filter: drop-shadow(0 4px 16px rgba(0,0,0,0.4));
+  animation: fadeInDown 0.7s ease;
 }
 
-@keyframes fadeInLeft {
-  from {
-    opacity: 0;
-    transform: translateX(-20px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
+@keyframes fadeInDown {
+  from { opacity: 0; transform: translateY(-16px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 .title {
-  font-size: 3.5rem;
-  font-weight: 700;
-  margin-bottom: 1rem;
-  letter-spacing: -0.025em;
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  font-size: clamp(1.8rem, 3vw, 2.8rem);
+  font-weight: 800;
+  margin-bottom: 0.6rem;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  animation: fadeInUp 0.6s ease 0.1s both;
 }
 
 .subtitle {
-  font-size: 1.25rem;
+  font-size: clamp(1rem, 1.5vw, 1.2rem);
   opacity: 0.9;
   font-weight: 500;
-  max-width: 450px;
-  line-height: 1.4;
+  margin-bottom: 0.3rem;
+  animation: fadeInUp 0.6s ease 0.2s both;
 }
 
+.unitLabel {
+  font-size: 0.85rem;
+  opacity: 0.7;
+  margin-bottom: 2.5rem;
+  font-weight: 400;
+  animation: fadeInUp 0.6s ease 0.25s both;
+}
+
+.featureList {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  animation: fadeInUp 0.6s ease 0.35s both;
+}
+
+.featureItem {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  font-size: 0.95rem;
+  opacity: 0.9;
+  background: rgba(255, 255, 255, 0.08);
+  padding: 0.75rem 1.1rem;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(6px);
+}
+
+.featureIcon {
+  font-size: 1.2rem;
+  flex-shrink: 0;
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ─── Right login panel ──────────────────────────────────────────────────── */
 .rightPanel {
-  flex: 1;
+  flex: 0.9;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -98,89 +132,289 @@
 
 .loginCard {
   background: var(--surface);
-  padding: 3.5rem 3rem;
+  padding: 3rem 2.75rem;
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg);
+  box-shadow: 0 20px 60px -10px rgba(0, 0, 0, 0.12), 0 0 0 1px var(--border);
   width: 100%;
-  max-width: 480px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+  max-width: 440px;
+  animation: slideInRight 0.5s ease;
+}
+
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(20px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+/* ─── Card header ────────────────────────────────────────────────────────── */
+.cardHeader {
   text-align: center;
-  border: 1px solid var(--border);
+  margin-bottom: 2.25rem;
 }
 
-.logoPlaceholder {
-  width: 64px;
-  height: 64px;
-  background: var(--primary-light);
-  color: var(--primary);
-  border-radius: 50%;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  font-size: 2rem;
-  margin-bottom: 1.5rem;
+.cardLogo {
+  width: 56px;
+  height: auto;
+  margin-bottom: 1.25rem;
 }
 
-.loginCard h2 {
-  font-size: 1.875rem;
+.cardTitle {
+  font-size: 1.6rem;
   font-weight: 700;
   color: var(--foreground);
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.4rem;
 }
 
-.loginSubtitle {
+.cardSubtitle {
+  font-size: 0.875rem;
   color: var(--text-muted);
-  margin-bottom: 2.5rem;
-  font-size: 1rem;
+  line-height: 1.5;
 }
 
-.googleBtn {
+/* ─── Form ───────────────────────────────────────────────────────────────── */
+.loginForm {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.fieldGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.inputWrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.inputIcon {
+  position: absolute;
+  left: 0.9rem;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  pointer-events: none;
+}
+
+.input {
   width: 100%;
+  padding: 0.75rem 2.75rem 0.75rem 2.75rem;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-md);
+  font-size: 0.95rem;
+  color: var(--foreground);
+  background: var(--background);
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  font-family: inherit;
+}
+
+.input::placeholder {
+  color: #a0aec0;
+}
+
+.input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(0, 162, 233, 0.12);
   background: white;
-  color: #3C4043;
-  border: 1px solid #DADCE0;
+}
+
+.input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.eyeBtn {
+  position: absolute;
+  right: 0.85rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  padding: 0.2rem;
+  border-radius: 4px;
+  transition: color 0.15s;
+}
+
+.eyeBtn:hover {
+  color: var(--foreground);
+}
+
+/* ─── Login button ───────────────────────────────────────────────────────── */
+.loginBtn {
+  width: 100%;
+  padding: 0.85rem;
+  background: var(--primary);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  margin-top: 0.5rem;
+  font-family: inherit;
+}
+
+.loginBtn:hover:not(:disabled) {
+  background: var(--primary-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(0, 162, 233, 0.35);
+}
+
+.loginBtn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.loginBtn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+/* ─── Spinner ────────────────────────────────────────────────────────────── */
+.spinner {
+  width: 18px;
+  height: 18px;
+  border: 2.5px solid rgba(255, 255, 255, 0.35);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ─── Footer note ────────────────────────────────────────────────────────── */
+.cardFooter {
+  margin-top: 1.75rem;
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.footerNote {
+  color: var(--primary);
   font-weight: 500;
 }
 
-.googleBtn:hover {
-  background: #F8F9FA;
-  box-shadow: 0 1px 2px 0 rgba(60, 64, 67, 0.30), 0 1px 3px 1px rgba(60, 64, 67, 0.15);
-  transform: none;
+
+/* ─── Label row with forgot link ─────────────────────────────────────────── */
+.labelRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
-@media (max-width: 768px) {
+.forgotBtn {
+  background: none;
+  border: none;
+  color: var(--primary);
+  font-size: 0.78rem;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 0;
+  font-family: inherit;
+  transition: color 0.15s;
+}
+
+.forgotBtn:hover {
+  color: var(--primary-hover);
+  text-decoration: underline;
+}
+
+/* ─── Back button (in reset mode) ───────────────────────────────────────── */
+.backBtn {
+  width: 100%;
+  padding: 0.75rem;
+  background: transparent;
+  color: var(--text-muted);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-md);
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: inherit;
+  margin-top: -0.25rem;
+}
+
+.backBtn:hover {
+  background: var(--background);
+  color: var(--foreground);
+}
+
+/* ─── Responsive ─────────────────────────────────────────────────────────── */
+@media (max-width: 900px) {
   .container {
     flex-direction: column;
   }
 
   .leftPanel {
-    padding: 2rem;
-    min-height: 40vh;
+    flex: none;
+    min-height: 42vh;
+    padding: 2.5rem 1.75rem;
+    align-items: flex-start;
   }
 
-  .title {
-    font-size: 2.5rem;
+  .branding {
+    max-width: 100%;
   }
 
-  .logoWrapper {
-    gap: 1.5rem;
+  .featureList {
+    display: none; /* hide on small screens to save space */
   }
 
-  .plnLogo {
-    width: 100px;
+  .unitLabel {
+    margin-bottom: 0;
+  }
+
+  .rightPanel {
+    flex: none;
+    padding: 2rem 1.25rem 3rem;
+  }
+
+  .loginCard {
+    padding: 2.25rem 1.75rem;
+    box-shadow: none;
+    border: 1px solid var(--border);
   }
 }
 
 @media (max-width: 480px) {
-  .logoWrapper {
-    flex-direction: column;
-    text-align: center;
-    gap: 1rem;
+  .leftPanel {
+    min-height: 35vh;
+    padding: 2rem 1.25rem;
   }
 
-  .branding {
-    padding: 2rem 1.5rem;
+  .title {
+    font-size: 1.6rem;
+  }
+
+  .plnLogo {
+    width: 70px;
+  }
+
+  .loginCard {
+    padding: 1.75rem 1.25rem;
+  }
+
+  .cardTitle {
+    font-size: 1.35rem;
   }
 }

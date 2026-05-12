@@ -80,3 +80,7 @@ a:hover {
 .btn-primary:active {
   transform: translateY(0);
 }
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}

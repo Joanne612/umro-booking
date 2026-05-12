@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useAuth } from "@/context/AuthContext";
+import { useAuth, adminCreateUser, sendPasswordReset } from "@/context/AuthContext";
 import { useToast } from "@/context/ToastContext";
 import { initAndGetRooms, updateRoom, addRoom, deleteRoom, Room, getAllUsers, updateUserRole, deleteUserAccount, UserRole } from "@/lib/firebase/firestore";
 import styles from "../dashboard.module.css";
@@ -40,6 +40,19 @@ export default function AdminPage() {
   // User Deletion State
   const [userDeletePending, setUserDeletePending] = useState<{ uid: string; name: string } | null>(null);
   const [userDeleting, setUserDeleting] = useState(false);
+
+  // Create User Account State
+  const [showCreateUser, setShowCreateUser] = useState(false);
+  const [createUserForm, setCreateUserForm] = useState({
+    name: "",
+    email: "",
+    password: "",
+    confirmPassword: "",
+    role: "user" as "admin" | "asman" | "koordinator_driver" | "staff_umum" | "user" | "view" | "driver",
+  });
+  const [createUserLoading, setCreateUserLoading] = useState(false);
+  const [showCreatePassword, setShowCreatePassword] = useState(false);
+  const [sendingResetFor, setSendingResetFor] = useState<string | null>(null); // uid of user getting reset email
 
   const fetchRooms = async () => {
     setRoomsLoading(true);
@@ -135,6 +148,53 @@ export default function AdminPage() {
       showToast("Gagal menghapus pengguna: " + error.message, "error");
     } finally {
       setUserDeleting(false);
+    }
+  };
+
+  const handleSendReset = async (uid: string, email: string, name: string) => {
+    if (!email) {
+      showToast("Email pengguna tidak ditemukan.", "error");
+      return;
+    }
+    setSendingResetFor(uid);
+    try {
+      const result = await sendPasswordReset(email);
+      showToast(result.message, result.success ? "success" : "error");
+    } finally {
+      setSendingResetFor(null);
+    }
+  };
+
+  const handleCreateUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const { name, email, password, confirmPassword, role } = createUserForm;
+    if (!name.trim() || !email.trim() || !password.trim()) {
+      showToast("Semua field wajib diisi.", "error");
+      return;
+    }
+    if (password !== confirmPassword) {
+      showToast("Password dan konfirmasi password tidak sama.", "error");
+      return;
+    }
+    if (password.length < 6) {
+      showToast("Password minimal 6 karakter.", "error");
+      return;
+    }
+    setCreateUserLoading(true);
+    try {
+      const result = await adminCreateUser(name.trim(), email.trim(), password, role);
+      if (result.success) {
+        showToast(result.message, "success");
+        setCreateUserForm({ name: "", email: "", password: "", confirmPassword: "", role: "user" });
+        setShowCreateUser(false);
+        fetchUsers();
+      } else {
+        showToast(result.message, "error");
+      }
+    } catch (err: any) {
+      showToast(err.message || "Terjadi kesalahan.", "error");
+    } finally {
+      setCreateUserLoading(false);
     }
   };
 
@@ -347,28 +407,185 @@ export default function AdminPage() {
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', flexWrap: 'wrap', gap: '1rem' }}>
             <div>
-              <h2 style={{ fontSize: '1.5rem', fontWeight: 600 }}>Pusat Kelola Pengguna</h2>
-              <p style={{ color: 'var(--text-muted)' }}>Kelola hak akses dan perizinan akun karyawan.</p>
+              <div>
+                <h2 style={{ fontSize: '1.5rem', fontWeight: 600 }}>Pusat Kelola Pengguna</h2>
+                <p style={{ color: 'var(--text-muted)' }}>Kelola hak akses dan perizinan akun karyawan.</p>
+              </div>
+              <div style={{
+                background: '#FEF3C7',
+                border: '1px solid #FCD34D',
+                borderRadius: 'var(--radius-md)',
+                padding: '0.75rem 1rem',
+                fontSize: '0.78rem',
+                color: '#92400E',
+                maxWidth: '100%',
+                lineHeight: 1.5,
+              }}>
+                <strong>⚠️ Migrasi dari sistem lama?</strong> Pengguna yang sebelumnya login via Google perlu <strong>Atur Password</strong> baru. Gunakan tombol <strong>🔑 Reset</strong> di kolom Aksi untuk mengirim email pengaturan password.
+              </div>
             </div>
 
-            {/* Search Input */}
-            <div style={{ position: 'relative', width: '100%', maxWidth: '300px' }}>
-              <input
-                type="text"
-                placeholder="Cari nama atau email..."
-                value={userSearch}
-                onChange={(e) => setUserSearch(e.target.value)}
+            {/* Right side: Search + Create Button */}
+            <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap', width: '100%', maxWidth: '500px' }}>
+              <div style={{ position: 'relative', flex: 1, minWidth: '200px' }}>
+                <input
+                  type="text"
+                  placeholder="Cari nama atau email..."
+                  value={userSearch}
+                  onChange={(e) => setUserSearch(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem 1rem 0.75rem 2.5rem',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid var(--border)',
+                    fontSize: '0.875rem'
+                  }}
+                />
+                <span style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', opacity: 0.5 }}>🔍</span>
+              </div>
+              <button
+                onClick={() => setShowCreateUser(v => !v)}
                 style={{
-                  width: '100%',
-                  padding: '0.75rem 1rem 0.75rem 2.5rem',
-                  borderRadius: 'var(--radius-md)',
+                  padding: '0.75rem 1.25rem',
+                  background: showCreateUser ? '#F3F4F6' : 'var(--primary)',
+                  color: showCreateUser ? 'var(--foreground)' : 'white',
                   border: '1px solid var(--border)',
-                  fontSize: '0.875rem'
+                  borderRadius: 'var(--radius-md)',
+                  cursor: 'pointer',
+                  fontWeight: 600,
+                  fontSize: '0.875rem',
+                  whiteSpace: 'nowrap',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  transition: 'all 0.2s',
                 }}
-              />
-              <span style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', opacity: 0.5 }}>🔍</span>
+              >
+                {showCreateUser ? '✕ Batal' : '+ Buat Akun User'}
+              </button>
             </div>
           </div>
+
+          {/* ─── Create User Form ─────────────────────────────────── */}
+          {showCreateUser && (
+            <div style={{
+              background: 'var(--surface)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-lg)',
+              padding: '1.75rem',
+              marginBottom: '1.5rem',
+              boxShadow: '0 4px 16px rgba(0,0,0,0.06)',
+            }}>
+              <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '0.4rem' }}>Buat Akun Pengguna Baru</h3>
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '1.5rem' }}>
+                Akun akan langsung aktif. Jika email sudah terdaftar sebagai driver, role akan otomatis ditetapkan sebagai Driver.
+              </p>
+              <form onSubmit={handleCreateUser} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
+                {/* Name */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                  <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--foreground)' }}>Nama Lengkap *</label>
+                  <input
+                    type="text"
+                    placeholder="Contoh: Budi Santoso"
+                    value={createUserForm.name}
+                    onChange={(e) => setCreateUserForm(f => ({ ...f, name: e.target.value }))}
+                    disabled={createUserLoading}
+                    style={{ padding: '0.7rem 0.9rem', border: '1.5px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize: '0.875rem' }}
+                    required
+                  />
+                </div>
+                {/* Email */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                  <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--foreground)' }}>Email *</label>
+                  <input
+                    type="email"
+                    placeholder="email@pln.co.id"
+                    value={createUserForm.email}
+                    onChange={(e) => setCreateUserForm(f => ({ ...f, email: e.target.value }))}
+                    disabled={createUserLoading}
+                    style={{ padding: '0.7rem 0.9rem', border: '1.5px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize: '0.875rem' }}
+                    required
+                  />
+                </div>
+                {/* Role */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                  <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--foreground)' }}>Role / Hak Akses *</label>
+                  <select
+                    value={createUserForm.role}
+                    onChange={(e) => setCreateUserForm(f => ({ ...f, role: e.target.value as any }))}
+                    disabled={createUserLoading}
+                    style={{ padding: '0.7rem 0.9rem', border: '1.5px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize: '0.875rem', background: 'white' }}
+                  >
+                    <option value="user">User (Pegawai Umum)</option>
+                    <option value="staff_umum">Staff Umum</option>
+                    <option value="koordinator_driver">Koordinator Driver</option>
+                    <option value="asman">Asman</option>
+                    <option value="admin">Admin (Full Control)</option>
+                    <option value="view">View Only</option>
+                    <option value="driver">Driver</option>
+                  </select>
+                </div>
+                {/* Password */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                  <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--foreground)' }}>Password *</label>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      type={showCreatePassword ? "text" : "password"}
+                      placeholder="Min. 6 karakter"
+                      value={createUserForm.password}
+                      onChange={(e) => setCreateUserForm(f => ({ ...f, password: e.target.value }))}
+                      disabled={createUserLoading}
+                      style={{ width: '100%', padding: '0.7rem 2.5rem 0.7rem 0.9rem', border: '1.5px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize: '0.875rem', boxSizing: 'border-box' }}
+                      required
+                    />
+                    <button type="button" onClick={() => setShowCreatePassword(v => !v)} style={{ position: 'absolute', right: '0.65rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '1rem' }}>
+                      {showCreatePassword ? '🙈' : '👁'}
+                    </button>
+                  </div>
+                </div>
+                {/* Confirm Password */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                  <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--foreground)' }}>Konfirmasi Password *</label>
+                  <input
+                    type={showCreatePassword ? "text" : "password"}
+                    placeholder="Ulangi password"
+                    value={createUserForm.confirmPassword}
+                    onChange={(e) => setCreateUserForm(f => ({ ...f, confirmPassword: e.target.value }))}
+                    disabled={createUserLoading}
+                    style={{ padding: '0.7rem 0.9rem', border: '1.5px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize: '0.875rem' }}
+                    required
+                  />
+                </div>
+                {/* Submit Button */}
+                <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+                  <button
+                    type="submit"
+                    disabled={createUserLoading}
+                    style={{
+                      width: '100%',
+                      padding: '0.75rem',
+                      background: createUserLoading ? 'var(--border)' : 'var(--primary)',
+                      color: createUserLoading ? 'var(--text-muted)' : 'white',
+                      border: 'none',
+                      borderRadius: 'var(--radius-md)',
+                      fontWeight: 600,
+                      fontSize: '0.9rem',
+                      cursor: createUserLoading ? 'not-allowed' : 'pointer',
+                      transition: 'all 0.2s',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '0.5rem',
+                    }}
+                  >
+                    {createUserLoading ? (
+                      <><span style={{ display: 'inline-block', width: '16px', height: '16px', border: '2px solid rgba(255,255,255,0.4)', borderTop: '2px solid white', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />Membuat Akun...</>
+                    ) : '✔ Buat Akun'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
 
           <div style={{ overflowX: 'auto', width: '100%', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '700px' }}>
@@ -431,22 +648,43 @@ export default function AdminPage() {
                       </select>
                     </td>
                     <td style={{ padding: '1rem', textAlign: 'right' }}>
-                      <button
-                        onClick={() => setUserDeletePending({ uid: u.uid, name: u.name })}
-                        disabled={u.uid === user?.uid}
-                        title="Hapus Pengguna"
-                        style={{
-                          background: '#FEE2E2',
-                          color: '#EF4444',
-                          border: 'none',
-                          padding: '0.5rem 0.75rem',
-                          borderRadius: 'var(--radius-md)',
-                          cursor: u.uid === user?.uid ? 'not-allowed' : 'pointer',
-                          opacity: u.uid === user?.uid ? 0.5 : 1
-                        }}
-                      >
-                        🗑️
-                      </button>
+                      <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'flex-end', alignItems: 'center' }}>
+                        <button
+                          onClick={() => handleSendReset(u.uid, u.email || "", u.name)}
+                          disabled={sendingResetFor === u.uid}
+                          title="Kirim email atur/reset password ke pengguna ini"
+                          style={{
+                            background: '#EFF6FF',
+                            color: '#3B82F6',
+                            border: 'none',
+                            padding: '0.45rem 0.7rem',
+                            borderRadius: 'var(--radius-md)',
+                            cursor: 'pointer',
+                            fontSize: '0.75rem',
+                            fontWeight: 600,
+                            whiteSpace: 'nowrap',
+                            opacity: sendingResetFor === u.uid ? 0.6 : 1,
+                          }}
+                        >
+                          {sendingResetFor === u.uid ? "⏳" : "🔑 Reset"}
+                        </button>
+                        <button
+                          onClick={() => setUserDeletePending({ uid: u.uid, name: u.name })}
+                          disabled={u.uid === user?.uid}
+                          title="Hapus Pengguna"
+                          style={{
+                            background: '#FEE2E2',
+                            color: '#EF4444',
+                            border: 'none',
+                            padding: '0.5rem 0.65rem',
+                            borderRadius: 'var(--radius-md)',
+                            cursor: u.uid === user?.uid ? 'not-allowed' : 'pointer',
+                            opacity: u.uid === user?.uid ? 0.5 : 1
+                          }}
+                        >
+                          🗑️
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
