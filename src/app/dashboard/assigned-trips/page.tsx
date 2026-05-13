@@ -87,10 +87,14 @@ export default function AssignedTripsPage() {
 
   const handleOpenKmModal = (trip: DriverTrip, type: 'start' | 'end') => {
     setKmModal({ isOpen: true, trip, type });
-    // Reset foto states
-    setStartKmPhoto(null); setStartKmPhotoPreview("");
-    setEndKmPhoto(null); setEndKmPhotoPreview("");
-    setTollPhotos([]); setTollPhotoPreviews([]);
+    // Reset foto states tapi muat yang sudah ada jika ada (untuk draft)
+    setStartKmPhoto(null);
+    setStartKmPhotoPreview(trip.startKmPhotoUrl || "");
+    setEndKmPhoto(null);
+    setEndKmPhotoPreview(trip.endKmPhotoUrl || "");
+    setTollPhotos([]);
+    setTollPhotoPreviews(trip.tollPhotoUrls || []);
+    
     setUploadProgress(0);
     setKmError("");
 
@@ -137,16 +141,27 @@ export default function AssignedTripsPage() {
       const err = validateImageFile(file);
       if (err) { showToast(err, "error"); return; }
     }
-    const combined = [...tollPhotos, ...files];
-    setTollPhotos(combined);
-    setTollPhotoPreviews(combined.map(f => URL.createObjectURL(f)));
+    
+    // Simpan file asli untuk upload
+    setTollPhotos(prev => [...prev, ...files]);
+    
+    // Tambahkan preview (blob) ke daftar preview yang sudah ada (bisa campur URL & blob)
+    const newPreviews = files.map(f => URL.createObjectURL(f));
+    setTollPhotoPreviews(prev => [...prev, ...newPreviews]);
   };
 
   const handleRemoveTollPhoto = (idx: number) => {
-    const newFiles = tollPhotos.filter((_, i) => i !== idx);
-    const newPreviews = tollPhotoPreviews.filter((_, i) => i !== idx);
-    setTollPhotos(newFiles);
-    setTollPhotoPreviews(newPreviews);
+    const targetPreview = tollPhotoPreviews[idx];
+    
+    // Jika itu adalah blob (baru dipilih), hapus juga dari tollPhotos
+    if (targetPreview.startsWith('blob:')) {
+      // Cari index di tollPhotos. Kita perlu tahu ini file ke berapa yang baru ditambahkan.
+      // Cara paling aman: hitung berapa banyak blob sebelum index ini.
+      const blobIndex = tollPhotoPreviews.slice(0, idx).filter(p => p.startsWith('blob:')).length;
+      setTollPhotos(prev => prev.filter((_, i) => i !== blobIndex));
+    }
+    
+    setTollPhotoPreviews(prev => prev.filter((_, i) => i !== idx));
   };
 
   const handleAddToll = () => setTolls([...tolls, ""]);
@@ -219,29 +234,38 @@ export default function AssignedTripsPage() {
         updates.sppdCost = kmModal.trip.sppdCost || 0;
         updates.totalRealization = totalRealization;
 
-        // Upload foto odometer akhir
+        // Upload foto odometer akhir jika ada file baru
         if (endKmPhoto) {
           setIsUploading(true);
           setUploadProgress(0);
           const result = await uploadToCloudinary(endKmPhoto, "umro-booking/odometer", (p: number) => setUploadProgress(p));
           updates.endKmPhotoUrl = result.url;
           setIsUploading(false);
+        } else {
+          // Tetap gunakan yang lama jika tidak ada upload baru (bisa URL atau "")
+          updates.endKmPhotoUrl = endKmPhotoPreview;
         }
 
-        // Upload foto struk tol (bisa multiple)
+        // Handle Struk Tol
+        // Ambil yang sudah berupa URL (existing)
+        const existingUrls = tollPhotoPreviews.filter(p => !p.startsWith('blob:'));
+        const newUploadedUrls: string[] = [];
+
+        // Upload file baru jika ada
         if (tollPhotos.length > 0) {
           setIsUploading(true);
-          const uploadedUrls: string[] = [];
           for (let i = 0; i < tollPhotos.length; i++) {
             setUploadProgress(0);
             const result = await uploadToCloudinary(tollPhotos[i], "umro-booking/toll-receipts", (p: number) =>
               setUploadProgress(Math.round(((i / tollPhotos.length) + p / 100 / tollPhotos.length) * 100))
             );
-            uploadedUrls.push(result.url);
+            newUploadedUrls.push(result.url);
           }
-          updates.tollPhotoUrls = uploadedUrls;
           setIsUploading(false);
         }
+        
+        // Gabungkan yang lama yang masih ada + yang baru diupload
+        updates.tollPhotoUrls = [...existingUrls, ...newUploadedUrls];
       }
 
       await updateDriverTrip(kmModal.trip.id, updates);
