@@ -181,7 +181,7 @@ export default function VehicleApprovalCard({
                 className="btn-primary"
                 style={{ padding: '0.6rem 2rem', background: userRole === 'koordinator_driver' ? '#0ea5e9' : '#10B981' }}
               >
-                {userRole === 'koordinator_driver' ? '✓ Validasi & Setujui' : '✓ Setujui'}
+                {userRole === 'koordinator_driver' ? '✓ Validasi & Setujui' : '✓ Mengetahui'}
               </button>
             </>
           )}

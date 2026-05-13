@@ -796,7 +796,7 @@ export default function AssignedTripsPage() {
             onClick={() => setPhotoSourceSheet({ isOpen: false, target: null })}
             style={{
               position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)',
-              zIndex: 1000, animation: 'fadeIn 0.2s ease'
+              zIndex: 10000, animation: 'fadeIn 0.2s ease'
             }}
           />
           {/* Sheet */}
@@ -804,7 +804,7 @@ export default function AssignedTripsPage() {
             position: 'fixed', bottom: 0, left: 0, right: 0,
             background: 'white', borderRadius: '24px 24px 0 0',
             padding: '1.5rem 1.5rem 2.5rem',
-            zIndex: 1001,
+            zIndex: 10001,
             animation: 'slideUp 0.25s ease',
             boxShadow: '0 -4px 24px rgba(0,0,0,0.12)'
           }}>

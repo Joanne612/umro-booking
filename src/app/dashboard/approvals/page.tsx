@@ -1,18 +1,18 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/context/ToastContext";
 import {
-  getPendingConsumptionBookings,
-  getApprovedConsumptionBookings,
   getConsumptionHistory,
   updateConsumptionStatus,
+  subscribeToConsumptionBookings,
   subscribeToWaitingAsmanVehicles,
   subscribeToVehicleHistory,
   acknowledgeVehicleBooking,
   updateVehicleBookingStatus,
   getItemRequestsByStatus,
+  subscribeToPendingItemRequests,
   updateItemRequestStatus,
   subscribeToMaintenanceRequests,
   updateMaintenanceRequestStatus,
@@ -32,6 +32,11 @@ export default function ApprovalsPage() {
   const [activeTab, setActiveTab] = useState<"consumption" | "vehicle" | "item" | "maintenance">("consumption");
   const [viewMode, setViewMode] = useState<"pending" | "history">("pending");
   const [searchQuery, setSearchQuery] = useState("");
+
+  const activeTabRef = useRef(activeTab);
+  useEffect(() => {
+    activeTabRef.current = activeTab;
+  }, [activeTab]);
 
   const [consumptionBookings, setConsumptionBookings] = useState<BookingData[]>([]);
   const [vehicleBookings, setVehicleBookings] = useState<VehicleBooking[]>([]);
@@ -53,71 +58,82 @@ export default function ApprovalsPage() {
     return dateStr < today;
   };
 
-  const fetchData = async () => {
-    setLoading(true);
-    try {
-      if (viewMode === "pending") {
-        if (userRole === "staff_umum") {
-          const approvedCons = await getApprovedConsumptionBookings();
-          setConsumptionBookings(approvedCons);
-          const approvedItems = await getItemRequestsByStatus(["approved"]);
-          setItemRequests(approvedItems);
-        } else {
-          const consData = await getPendingConsumptionBookings();
-          setConsumptionBookings(consData);
-          const pendingItems = await getItemRequestsByStatus(["pending"]);
-          setItemRequests(pendingItems);
-        }
-      } else {
-        const consData = await getConsumptionHistory();
-        setConsumptionBookings(consData);
-        const historyItems = await getItemRequestsByStatus(["completed", "rejected"]);
-        setItemRequests(historyItems);
-      }
-    } catch (error: any) {
-      showToast("Gagal memuat data: " + error.message, "error");
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  // Subscriptions for Pending Mode (Always active for counts)
   useEffect(() => {
-    fetchData();
-  }, [viewMode, userRole]);
-
-  // Real-time Vehicle Subscription
-  useEffect(() => {
-    if (activeTab !== "vehicle") return;
+    if (viewMode !== "pending") return;
     
     setLoading(true);
-    let unsubscribe: () => void;
-
-    if (viewMode === "pending") {
-      unsubscribe = subscribeToWaitingAsmanVehicles((data) => {
-        setVehicleBookings(data);
-        setLoading(false);
-      });
-    } else {
-      unsubscribe = subscribeToVehicleHistory((data) => {
-        setVehicleBookings(data);
-        setLoading(false);
-      });
-    }
     
-    return () => unsubscribe?.();
-  }, [viewMode, activeTab]);
-
-  // Real-time Maintenance Subscription
-  useEffect(() => {
-    if (activeTab !== "maintenance") return;
-    setLoading(true);
-    const statuses = viewMode === "pending" ? ["pending", "in_progress"] : ["completed", "rejected"];
-    const unsub = subscribeToMaintenanceRequests(statuses, (data) => {
-      setMaintenanceRequests(data);
-      setLoading(false);
+    // 1. Consumption
+    const consStatuses = userRole === "staff_umum" ? ["approved"] : ["pending"];
+    const unsubCons = subscribeToConsumptionBookings(consStatuses, (data) => {
+      setConsumptionBookings(data);
+      if (activeTabRef.current === "consumption") setLoading(false);
     });
-    return () => unsub?.();
-  }, [viewMode, activeTab, userRole]);
+
+    // 2. Vehicle
+    const unsubVeh = subscribeToWaitingAsmanVehicles((data) => {
+      setVehicleBookings(data);
+      if (activeTabRef.current === "vehicle") setLoading(false);
+    });
+
+    // 3. Item
+    const itemStatuses = userRole === "staff_umum" ? ["approved"] : ["pending"];
+    const unsubItem = subscribeToPendingItemRequests(itemStatuses, (data) => {
+      setItemRequests(data);
+      if (activeTabRef.current === "item") setLoading(false);
+    });
+
+    // 4. Maintenance
+    const maintStatuses = ["pending", "in_progress"];
+    const unsubMaint = subscribeToMaintenanceRequests(maintStatuses, (data) => {
+      setMaintenanceRequests(data);
+      if (activeTabRef.current === "maintenance") setLoading(false);
+    });
+
+    return () => {
+      unsubCons();
+      unsubVeh();
+      unsubItem();
+      unsubMaint();
+    };
+  }, [viewMode, userRole]); // Removed activeTab
+
+  // Subscriptions for History Mode
+  useEffect(() => {
+    if (viewMode !== "history") return;
+    
+    setLoading(true);
+
+    // Consumption History (Direct fetch as it's less frequent)
+    getConsumptionHistory().then(data => {
+      setConsumptionBookings(data);
+      if (activeTabRef.current === "consumption") setLoading(false);
+    });
+
+    // Vehicle History
+    const unsubVeh = subscribeToVehicleHistory((data) => {
+      setVehicleBookings(data);
+      if (activeTabRef.current === "vehicle") setLoading(false);
+    });
+
+    // Item History
+    getItemRequestsByStatus(["completed", "rejected"]).then(data => {
+      setItemRequests(data);
+      if (activeTabRef.current === "item") setLoading(false);
+    });
+
+    // Maintenance History
+    const unsubMaint = subscribeToMaintenanceRequests(["completed", "rejected"], (data) => {
+      setMaintenanceRequests(data);
+      if (activeTabRef.current === "maintenance") setLoading(false);
+    });
+
+    return () => {
+      unsubVeh();
+      unsubMaint();
+    };
+  }, [viewMode]); // Removed activeTab
 
   // Combined Search Filtering
   const filteredConsumption = useMemo(() => {
@@ -171,7 +187,6 @@ export default function ApprovalsPage() {
         );
         showToast("Permintaan konsumsi berhasil disetujui, diteruskan ke Staff Umum.", "success");
       }
-      fetchData();
     } catch (error: any) {
       showToast("Gagal memproses: " + error.message, "error");
     } finally {
@@ -189,7 +204,6 @@ export default function ApprovalsPage() {
         user.displayName || user.email || "Asman Umum"
       );
       showToast("Peminjaman kendaraan telah diketahui.", "success");
-      fetchData();
     } catch (error: any) {
       showToast("Gagal memproses: " + error.message, "error");
     } finally {
@@ -213,7 +227,6 @@ export default function ApprovalsPage() {
       showToast("Permintaan konsumsi telah ditolak.", "success");
       setRejectingConsumption(null);
       setRejectReason("");
-      fetchData();
     } catch (error: any) {
       showToast("Gagal memproses: " + error.message, "error");
     } finally {
@@ -237,7 +250,6 @@ export default function ApprovalsPage() {
       showToast("Peminjaman kendaraan telah ditolak.", "success");
       setRejectingVehicle(null);
       setRejectReason("");
-      fetchData();
     } catch (error: any) {
       showToast("Gagal memproses: " + error.message, "error");
     } finally {
@@ -256,7 +268,6 @@ export default function ApprovalsPage() {
         await updateItemRequestStatus(requestId, "approved", user.uid, user.displayName || user.email || "Asman Umum");
         showToast("Permintaan barang disetujui, diteruskan ke Staff Umum.", "success");
       }
-      fetchData();
     } catch (error: any) {
       showToast("Gagal memproses: " + error.message, "error");
     } finally {
@@ -280,7 +291,6 @@ export default function ApprovalsPage() {
       showToast("Permintaan barang telah ditolak.", "success");
       setRejectingItem(null);
       setRejectReason("");
-      fetchData();
     } catch (error: any) {
       showToast("Gagal memproses: " + error.message, "error");
     } finally {

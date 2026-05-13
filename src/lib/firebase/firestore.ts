@@ -762,6 +762,23 @@ export const getApprovedConsumptionBookings = async (): Promise<BookingData[]> =
     .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
 };
 
+export const subscribeToConsumptionBookings = (
+  statuses: string[],
+  callback: (data: BookingData[]) => void
+) => {
+  if (!db) return () => { };
+  const q = query(
+    collection(db, "bookings"),
+    where("status", "==", "active"),
+    where("consumption.requested", "==", true),
+    where("consumption.status", "in", statuses)
+  );
+  return onSnapshot(q, (snap) => {
+    const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as BookingData));
+    callback(data.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)));
+  });
+};
+
 export const updateConsumptionStatus = async (
   bookingId: string,
   status: "approved" | "rejected" | "completed",
