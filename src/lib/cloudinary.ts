@@ -8,13 +8,12 @@ export interface UploadResult {
 
 /**
  * Upload gambar ke Cloudinary langsung dari browser (unsigned upload).
- * Strategi kompresi dilakukan via URL transformation (on-the-fly):
+ * Strategi kompresi menggunakan Eager Transformation yang dikonfigurasi
+ * langsung di Cloudinary preset (e15honae), sehingga gambar yang tersimpan
+ * sudah terkompresi sejak awal upload:
  * - q_auto:best  → Cloudinary pilih kualitas optimal (tajam, tidak blur)
  * - f_auto       → Format terbaik (WebP/AVIF di browser modern)
  * - w_1920,c_limit → Max lebar 1920px, tidak upscale
- *
- * Catatan: eager & eager_async tidak digunakan karena tidak kompatibel
- * dengan unsigned preset yang menyertakan parameter folder.
  */
 export const uploadToCloudinary = (
     file: File,
@@ -39,15 +38,9 @@ export const uploadToCloudinary = (
         xhr.onload = () => {
             if (xhr.status === 200) {
                 const data = JSON.parse(xhr.responseText);
-                // Sisipkan transformasi kompresi langsung ke URL (on-the-fly)
-                // q_auto:best = kualitas tinggi otomatis, tidak blur
-                // f_auto = format paling efisien per browser
-                // w_1920,c_limit = max 1920px lebar, tidak diperbesar
-                const rawUrl: string = data.secure_url;
-                const url = rawUrl.replace(
-                    "/upload/",
-                    "/upload/q_auto:best,f_auto,w_1920,c_limit/"
-                );
+                // Pakai eager URL (sudah dikompres sesuai preset),
+                // fallback ke secure_url jika eager belum tersedia
+                const url = data.eager?.[0]?.secure_url || data.secure_url;
                 resolve({ url, publicId: data.public_id });
             } else {
                 let msg = `Upload gagal (${xhr.status})`;

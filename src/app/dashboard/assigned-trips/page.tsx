@@ -38,9 +38,20 @@ export default function AssignedTripsPage() {
   const [tollPhotoPreviews, setTollPhotoPreviews] = useState<string[]>([]);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
+
+  // Bottom sheet pilih sumber foto
+  const [photoSourceSheet, setPhotoSourceSheet] = useState<{
+    isOpen: boolean;
+    target: 'startKm' | 'endKm' | 'toll' | null;
+  }>({ isOpen: false, target: null });
+
+  // Ref kamera (capture=environment) dan galeri (tanpa capture)
   const startKmPhotoRef = useRef<HTMLInputElement>(null);
+  const startKmGalleryRef = useRef<HTMLInputElement>(null);
   const endKmPhotoRef = useRef<HTMLInputElement>(null);
+  const endKmGalleryRef = useRef<HTMLInputElement>(null);
   const tollPhotoRef = useRef<HTMLInputElement>(null);
+  const tollGalleryRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!user?.uid) return;
@@ -52,6 +63,26 @@ export default function AssignedTripsPage() {
 
     return () => unsubscribe();
   }, [user]);
+
+  // Buka bottom sheet pilih sumber foto
+  const openPhotoSheet = (target: 'startKm' | 'endKm' | 'toll') => {
+    setPhotoSourceSheet({ isOpen: true, target });
+  };
+
+  // Ketika user pilih Kamera atau Galeri
+  const handlePhotoSourceSelect = (source: 'camera' | 'gallery') => {
+    const { target } = photoSourceSheet;
+    setPhotoSourceSheet({ isOpen: false, target: null });
+    setTimeout(() => {
+      if (target === 'startKm') {
+        (source === 'camera' ? startKmPhotoRef : startKmGalleryRef).current?.click();
+      } else if (target === 'endKm') {
+        (source === 'camera' ? endKmPhotoRef : endKmGalleryRef).current?.click();
+      } else if (target === 'toll') {
+        (source === 'camera' ? tollPhotoRef : tollGalleryRef).current?.click();
+      }
+    }, 100);
+  };
 
   const handleOpenKmModal = (trip: DriverTrip, type: 'start' | 'end') => {
     setKmModal({ isOpen: true, trip, type });
@@ -531,12 +562,20 @@ export default function AssignedTripsPage() {
                   📸 Foto Odometer {kmModal.type === 'start' ? 'Awal' : 'Akhir'} <span style={{ fontWeight: 400, textTransform: 'none', color: '#94A3B8' }}>(opsional)</span>
                 </label>
 
-                {/* Input tersembunyi */}
+                {/* Input kamera (capture) */}
                 <input
                   ref={kmModal.type === 'start' ? startKmPhotoRef : endKmPhotoRef}
                   type="file"
                   accept="image/*"
                   capture="environment"
+                  style={{ display: 'none' }}
+                  onChange={kmModal.type === 'start' ? handleStartKmPhoto : handleEndKmPhoto}
+                />
+                {/* Input galeri (tanpa capture) */}
+                <input
+                  ref={kmModal.type === 'start' ? startKmGalleryRef : endKmGalleryRef}
+                  type="file"
+                  accept="image/*"
                   style={{ display: 'none' }}
                   onChange={kmModal.type === 'start' ? handleStartKmPhoto : handleEndKmPhoto}
                 />
@@ -558,7 +597,7 @@ export default function AssignedTripsPage() {
                   </div>
                 ) : (
                   <button
-                    onClick={() => (kmModal.type === 'start' ? startKmPhotoRef : endKmPhotoRef).current?.click()}
+                    onClick={() => openPhotoSheet(kmModal.type === 'start' ? 'startKm' : 'endKm')}
                     style={{ width: '100%', padding: '1rem', borderRadius: '12px', border: '2px dashed #CBD5E1', background: 'white', cursor: 'pointer', color: '#64748B', fontWeight: 600, fontSize: '0.875rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
                   >
                     <span style={{ fontSize: '1.25rem' }}>📷</span> Ambil / Pilih Foto Odometer
@@ -626,15 +665,25 @@ export default function AssignedTripsPage() {
                         🧾 Foto Struk Tol <span style={{ fontWeight: 400, textTransform: 'none', color: '#94A3B8' }}>(opsional)</span>
                       </label>
                       <button
-                        onClick={() => tollPhotoRef.current?.click()}
+                        onClick={() => openPhotoSheet('toll')}
                         style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--primary)', border: 'none', background: 'none', cursor: 'pointer' }}
                       >+ Tambah Foto</button>
                     </div>
+                    {/* Input kamera */}
                     <input
                       ref={tollPhotoRef}
                       type="file"
                       accept="image/*"
                       capture="environment"
+                      multiple
+                      style={{ display: 'none' }}
+                      onChange={handleTollPhotos}
+                    />
+                    {/* Input galeri */}
+                    <input
+                      ref={tollGalleryRef}
+                      type="file"
+                      accept="image/*"
                       multiple
                       style={{ display: 'none' }}
                       onChange={handleTollPhotos}
@@ -655,13 +704,13 @@ export default function AssignedTripsPage() {
                           </div>
                         ))}
                         <button
-                          onClick={() => tollPhotoRef.current?.click()}
+                          onClick={() => openPhotoSheet('toll')}
                           style={{ height: '80px', borderRadius: '8px', border: '2px dashed #CBD5E1', background: 'white', cursor: 'pointer', color: '#94A3B8', fontSize: '1.5rem' }}
                         >+</button>
                       </div>
                     ) : (
                       <button
-                        onClick={() => tollPhotoRef.current?.click()}
+                        onClick={() => openPhotoSheet('toll')}
                         style={{ width: '100%', padding: '1rem', borderRadius: '12px', border: '2px dashed #CBD5E1', background: 'white', cursor: 'pointer', color: '#64748B', fontWeight: 600, fontSize: '0.875rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
                       >
                         <span style={{ fontSize: '1.25rem' }}>🧾</span> Ambil / Pilih Foto Struk Tol
@@ -739,6 +788,71 @@ export default function AssignedTripsPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ===== BOTTOM SHEET PILIH SUMBER FOTO ===== */}
+      {photoSourceSheet.isOpen && (
+        <>
+          {/* Overlay */}
+          <div
+            onClick={() => setPhotoSourceSheet({ isOpen: false, target: null })}
+            style={{
+              position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)',
+              zIndex: 1000, animation: 'fadeIn 0.2s ease'
+            }}
+          />
+          {/* Sheet */}
+          <div style={{
+            position: 'fixed', bottom: 0, left: 0, right: 0,
+            background: 'white', borderRadius: '24px 24px 0 0',
+            padding: '1.5rem 1.5rem 2.5rem',
+            zIndex: 1001,
+            animation: 'slideUp 0.25s ease',
+            boxShadow: '0 -4px 24px rgba(0,0,0,0.12)'
+          }}>
+            {/* Handle bar */}
+            <div style={{ width: '40px', height: '4px', background: '#E2E8F0', borderRadius: '99px', margin: '0 auto 1.25rem' }} />
+            <p style={{ fontWeight: 800, fontSize: '1rem', marginBottom: '1.25rem', textAlign: 'center', color: '#1E293B' }}>
+              Pilih Sumber Foto
+            </p>
+            <div style={{ display: 'flex', gap: '1rem' }}>
+              <button
+                onClick={() => handlePhotoSourceSelect('camera')}
+                style={{
+                  flex: 1, padding: '1.25rem 1rem', borderRadius: '16px',
+                  border: '2px solid #E2E8F0', background: 'white',
+                  cursor: 'pointer', display: 'flex', flexDirection: 'column',
+                  alignItems: 'center', gap: '0.5rem'
+                }}
+              >
+                <span style={{ fontSize: '2rem' }}>📷</span>
+                <span style={{ fontWeight: 700, fontSize: '0.875rem', color: '#1E293B' }}>Kamera</span>
+                <span style={{ fontSize: '0.7rem', color: '#94A3B8' }}>Ambil foto baru</span>
+              </button>
+              <button
+                onClick={() => handlePhotoSourceSelect('gallery')}
+                style={{
+                  flex: 1, padding: '1.25rem 1rem', borderRadius: '16px',
+                  border: '2px solid #E2E8F0', background: 'white',
+                  cursor: 'pointer', display: 'flex', flexDirection: 'column',
+                  alignItems: 'center', gap: '0.5rem'
+                }}
+              >
+                <span style={{ fontSize: '2rem' }}>🖼️</span>
+                <span style={{ fontWeight: 700, fontSize: '0.875rem', color: '#1E293B' }}>Galeri</span>
+                <span style={{ fontSize: '0.7rem', color: '#94A3B8' }}>Pilih dari galeri</span>
+              </button>
+            </div>
+            <button
+              onClick={() => setPhotoSourceSheet({ isOpen: false, target: null })}
+              style={{
+                marginTop: '1rem', width: '100%', padding: '0.875rem',
+                borderRadius: '12px', border: 'none', background: '#F1F5F9',
+                fontWeight: 700, fontSize: '0.875rem', color: '#64748B', cursor: 'pointer'
+              }}
+            >Batal</button>
+          </div>
+        </>
       )}
     </div>
   );

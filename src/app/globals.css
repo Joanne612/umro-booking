@@ -2,11 +2,13 @@
 
 :root {
   /* PLN Colors (Cyan/Teal/Blue) */
-  --primary: #00A2E9; /* PLN Blue Core */
+  --primary: #00A2E9;
+  /* PLN Blue Core */
   --primary-hover: #008DCC;
   --primary-light: rgba(0, 162, 233, 0.1);
-  --secondary: #005B82; 
-  --accent: #ECA313; /* PLN Yellow */
+  --secondary: #005B82;
+  --accent: #ECA313;
+  /* PLN Yellow */
 
   /* Neutral Colors */
   --background: #F4F7FA;
@@ -14,7 +16,7 @@
   --surface: #FFFFFF;
   --border: #E2E8F0;
   --text-muted: #64748B;
-  
+
   /* Utilities */
   --radius-sm: 6px;
   --radius-md: 12px;
@@ -25,7 +27,8 @@
 }
 
 
-html, body {
+html,
+body {
   height: 100%;
 }
 
@@ -82,5 +85,29 @@ a:hover {
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
