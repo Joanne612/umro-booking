@@ -22,6 +22,7 @@ export default function AssignedTripsPage() {
 
   // States for realization form
   const [kmValue, setKmValue] = useState("");
+  const [kmError, setKmError] = useState("");
   const [tolls, setTolls] = useState<string[]>([""]);
   const [fuelCost, setFuelCost] = useState("");
   const [parkingCost, setParkingCost] = useState("");
@@ -91,6 +92,7 @@ export default function AssignedTripsPage() {
     setEndKmPhoto(null); setEndKmPhotoPreview("");
     setTollPhotos([]); setTollPhotoPreviews([]);
     setUploadProgress(0);
+    setKmError("");
 
     if (type === 'start') {
       setKmValue(String(trip.startKm || ""));
@@ -268,6 +270,21 @@ export default function AssignedTripsPage() {
 
   return (
     <div style={{ paddingBottom: '3rem', animation: 'fadeIn 0.5s ease' }}>
+
+      {/* ===== HIDDEN FILE INPUTS (di luar modal agar tidak konflik di iOS) ===== */}
+      {/* Start KM - kamera */}
+      <input ref={startKmPhotoRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={handleStartKmPhoto} />
+      {/* Start KM - galeri */}
+      <input ref={startKmGalleryRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleStartKmPhoto} />
+      {/* End KM - kamera */}
+      <input ref={endKmPhotoRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={handleEndKmPhoto} />
+      {/* End KM - galeri */}
+      <input ref={endKmGalleryRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleEndKmPhoto} />
+      {/* Tol - kamera */}
+      <input ref={tollPhotoRef} type="file" accept="image/*" capture="environment" multiple style={{ display: 'none' }} onChange={handleTollPhotos} />
+      {/* Tol - galeri */}
+      <input ref={tollGalleryRef} type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={handleTollPhotos} />
+
       <div style={{ marginBottom: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
           <h2 style={{ fontSize: '1.5rem', fontWeight: 700 }}>Penugasan Saya</h2>
@@ -537,7 +554,7 @@ export default function AssignedTripsPage() {
             </p>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-              <div style={{ background: '#F8FAFC', padding: '1.25rem', borderRadius: '16px', border: '1px solid #E2E8F0' }}>
+              <div style={{ background: '#F8FAFC', padding: '1.25rem', borderRadius: '16px', border: `1px solid ${kmError ? '#EF4444' : '#E2E8F0'}` }}>
                 <label style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: '0.5rem' }}>
                   KM {kmModal.type === 'start' ? 'Awal' : 'Akhir'} Perjalanan
                 </label>
@@ -545,13 +562,31 @@ export default function AssignedTripsPage() {
                   type="number"
                   placeholder="0"
                   value={kmValue}
-                  onChange={(e) => setKmValue(e.target.value)}
-                  style={{ width: '100%', padding: '0.75rem', fontSize: '1.25rem', fontWeight: 800, borderRadius: '12px', border: '2px solid var(--primary)', textAlign: 'center' }}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setKmValue(val);
+                    if (kmModal.type === 'end' && val && kmModal.trip?.startKm !== undefined) {
+                      if (Number(val) < kmModal.trip.startKm) {
+                        setKmError(`KM Akhir harus ≥ KM Awal (${kmModal.trip.startKm})`);
+                      } else {
+                        setKmError("");
+                      }
+                    } else {
+                      setKmError("");
+                    }
+                  }}
+                  style={{ width: '100%', padding: '0.75rem', fontSize: '1.25rem', fontWeight: 800, borderRadius: '12px', border: `2px solid ${kmError ? '#EF4444' : 'var(--primary)'}`, textAlign: 'center' }}
                 />
                 {kmModal.type === 'end' && (
                   <div style={{ marginTop: '0.5rem', display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
                     <span>KM Awal: <b>{kmModal.trip?.startKm}</b></span>
-                    <span>Total: <b style={{ color: 'var(--primary)' }}>{totalKm} KM</b></span>
+                    <span>Total: <b style={{ color: totalKm < 0 ? '#EF4444' : 'var(--primary)' }}>{totalKm} KM</b></span>
+                  </div>
+                )}
+                {kmError && (
+                  <div style={{ marginTop: '0.5rem', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '8px', padding: '0.5rem 0.75rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <span style={{ fontSize: '0.9rem' }}>⚠️</span>
+                    <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#DC2626' }}>{kmError}</span>
                   </div>
                 )}
               </div>
@@ -561,24 +596,6 @@ export default function AssignedTripsPage() {
                 <label style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: '0.75rem' }}>
                   📸 Foto Odometer {kmModal.type === 'start' ? 'Awal' : 'Akhir'} <span style={{ fontWeight: 400, textTransform: 'none', color: '#94A3B8' }}>(opsional)</span>
                 </label>
-
-                {/* Input kamera (capture) */}
-                <input
-                  ref={kmModal.type === 'start' ? startKmPhotoRef : endKmPhotoRef}
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  style={{ display: 'none' }}
-                  onChange={kmModal.type === 'start' ? handleStartKmPhoto : handleEndKmPhoto}
-                />
-                {/* Input galeri (tanpa capture) */}
-                <input
-                  ref={kmModal.type === 'start' ? startKmGalleryRef : endKmGalleryRef}
-                  type="file"
-                  accept="image/*"
-                  style={{ display: 'none' }}
-                  onChange={kmModal.type === 'start' ? handleStartKmPhoto : handleEndKmPhoto}
-                />
 
                 {(kmModal.type === 'start' ? startKmPhotoPreview : endKmPhotoPreview) ? (
                   <div style={{ position: 'relative', display: 'inline-block', width: '100%' }}>
@@ -669,25 +686,6 @@ export default function AssignedTripsPage() {
                         style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--primary)', border: 'none', background: 'none', cursor: 'pointer' }}
                       >+ Tambah Foto</button>
                     </div>
-                    {/* Input kamera */}
-                    <input
-                      ref={tollPhotoRef}
-                      type="file"
-                      accept="image/*"
-                      capture="environment"
-                      multiple
-                      style={{ display: 'none' }}
-                      onChange={handleTollPhotos}
-                    />
-                    {/* Input galeri */}
-                    <input
-                      ref={tollGalleryRef}
-                      type="file"
-                      accept="image/*"
-                      multiple
-                      style={{ display: 'none' }}
-                      onChange={handleTollPhotos}
-                    />
                     {tollPhotoPreviews.length > 0 ? (
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem' }}>
                         {tollPhotoPreviews.map((src, idx) => (
@@ -769,7 +767,7 @@ export default function AssignedTripsPage() {
 
               <button
                 onClick={() => handleConfirmKm(false)}
-                disabled={processingStatus || (kmModal.type === 'start' && !kmValue)}
+                disabled={processingStatus || (kmModal.type === 'start' && !kmValue) || !!kmError}
                 style={{
                   width: '100%',
                   padding: '1rem',
