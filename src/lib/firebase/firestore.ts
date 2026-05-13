@@ -146,17 +146,10 @@ export interface MaintenanceRequest {
 
 // Fungsi helper generate ticket ID (mirip createItemRequest)
 const generateMaintenanceTicketId = async (): Promise<string> => {
-  if (!db) throw new Error("Firestore not initialized");
-  const dateStr = new Date().toISOString().slice(2, 10).replace(/-/g, ""); // YYMMDD
-  const prefix = `MNT-${dateStr}-`;
-  const q = query(
-    collection(db, "maintenance_requests"),
-    where("ticketId", ">=", prefix),
-    where("ticketId", "<", prefix + "\uf8ff")
-  );
-  const snap = await getDocs(q);
-  const nextNum = (snap.size + 1).toString().padStart(3, "0");
-  return `${prefix}${nextNum}`;
+  const date = new Date();
+  const dateStr = date.toISOString().slice(2, 10).replace(/-/g, '');
+  const randomStr = Math.random().toString(36).substring(2, 6).toUpperCase();
+  return `MNT-${dateStr}-${randomStr}`;
 };
 
 export const createMaintenanceRequest = async (

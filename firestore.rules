@@ -34,7 +34,8 @@ service cloud.firestore {
     }
     
     function isViewOnly() {
-      return request.auth != null && getUserData().role == 'view';
+      let data = getUserData();
+      return request.auth != null && data != null && data.role == 'view';
     }
 
     // Koleksi Users: Hanya Admin atau diri sendiri yang bisa baca/tulis lengkap
