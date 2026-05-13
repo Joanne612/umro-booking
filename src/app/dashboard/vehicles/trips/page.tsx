@@ -217,7 +217,10 @@ export default function DriverTripsPage() {
     return trip.status === "completed";
   });
 
-  if (userRole !== "admin" && userRole !== "koordinator_driver") {
+  const isViewOnly = userRole === "asman";
+  const canManage = userRole === "admin" || userRole === "koordinator_driver";
+
+  if (!canManage && !isViewOnly) {
     return (
       <div style={{ textAlign: "center", padding: "5rem 2rem" }}>
         <div style={{ fontSize: "4rem", marginBottom: "1rem" }}>🔒</div>
@@ -234,7 +237,7 @@ export default function DriverTripsPage() {
           <h2 style={{ fontSize: '1.5rem', fontWeight: 700 }}>Monitoring Perjalanan</h2>
           <p style={{ color: 'var(--text-muted)' }}>Pantau progres driver dan armada secara real-time.</p>
         </div>
-        
+
         <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
           {/* TABS KOORDINATOR */}
           <div style={{ display: 'flex', background: '#F1F5F9', padding: '0.25rem', borderRadius: '12px' }}>
@@ -274,9 +277,11 @@ export default function DriverTripsPage() {
             </button>
           </div>
 
-          <button onClick={handleOpenAdd} className={styles.btnEdit} style={{ background: 'var(--primary)', color: 'white', border: 'none', padding: '0.7rem 1.2rem', borderRadius: 'var(--radius-md)', fontWeight: 700, fontSize: '0.9rem' }}>
-            + Catat Perjalanan
-          </button>
+          {canManage && (
+            <button onClick={handleOpenAdd} className={styles.btnEdit} style={{ background: 'var(--primary)', color: 'white', border: 'none', padding: '0.7rem 1.2rem', borderRadius: 'var(--radius-md)', fontWeight: 700, fontSize: '0.9rem' }}>
+              + Catat Perjalanan
+            </button>
+          )}
         </div>
       </div>
 
@@ -304,10 +309,10 @@ export default function DriverTripsPage() {
                   <div style={{ fontSize: '0.85rem', color: 'var(--primary)', fontWeight: 600, marginTop: '0.15rem' }}>📞 {trip.contact}</div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <div style={{ 
-                    fontSize: '0.65rem', 
-                    fontWeight: 800, 
-                    padding: '4px 10px', 
+                  <div style={{
+                    fontSize: '0.65rem',
+                    fontWeight: 800,
+                    padding: '4px 10px',
                     borderRadius: '99px',
                     textTransform: 'uppercase',
                     marginBottom: '0.5rem',
@@ -318,10 +323,12 @@ export default function DriverTripsPage() {
                   }}>
                     {trip.status === 'pending' ? 'Pending' : trip.status === 'ongoing' ? 'Ongoing' : 'Selesai'}
                   </div>
-                  <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
-                    <button onClick={() => handleOpenEdit(trip)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem', padding: 0 }} title="Edit">✏️</button>
-                    <button onClick={() => trip.id && handleDelete(trip.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem', padding: 0 }} title="Hapus">🗑️</button>
-                  </div>
+                  {canManage && (
+                    <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
+                      <button onClick={() => handleOpenEdit(trip)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem', padding: 0 }} title="Edit">✏️</button>
+                      <button onClick={() => trip.id && handleDelete(trip.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem', padding: 0 }} title="Hapus">🗑️</button>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -347,27 +354,79 @@ export default function DriverTripsPage() {
                 </div>
               </div>
 
-              {/* REALIZATION DATA FOR KOORDINATOR */}
+              {/* REALIZATION DATA FOR KOORDINATOR / ASMAN */}
               {trip.status === 'completed' && (
                 <div style={{ margin: '1rem 0', padding: '1rem', background: '#F0F9FF', borderRadius: '12px', border: '1px solid #E0F2FE' }}>
-                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginBottom: '0.5rem', borderBottom: '1px solid #BAE6FD', paddingBottom: '0.25rem' }}>
-                      <span style={{ fontWeight: 800, color: '#0369A1' }}>📊 LAPORAN REALISASI</span>
-                      <span style={{ fontWeight: 700, color: '#0369A1' }}>{trip.endKm ? (trip.endKm - (trip.startKm || 0)) : 0} KM</span>
-                   </div>
-                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', fontSize: '0.8rem' }}>
-                      <div>
-                         <span style={{ color: '#0369A1', fontSize: '0.65rem', display: 'block' }}>KM AWAL/AKHIR</span>
-                         <span style={{ fontWeight: 600 }}>{trip.startKm || 0} / {trip.endKm || 0}</span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginBottom: '0.5rem', borderBottom: '1px solid #BAE6FD', paddingBottom: '0.25rem' }}>
+                    <span style={{ fontWeight: 800, color: '#0369A1' }}>📊 LAPORAN REALISASI</span>
+                    <span style={{ fontWeight: 700, color: '#0369A1' }}>{trip.endKm ? (trip.endKm - (trip.startKm || 0)) : 0} KM</span>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', fontSize: '0.8rem' }}>
+                    <div>
+                      <span style={{ color: '#0369A1', fontSize: '0.65rem', display: 'block' }}>KM AWAL/AKHIR</span>
+                      <span style={{ fontWeight: 600 }}>{trip.startKm || 0} / {trip.endKm || 0}</span>
+                    </div>
+                    <div>
+                      <span style={{ color: '#0369A1', fontSize: '0.65rem', display: 'block' }}>TOTAL TOL</span>
+                      <span style={{ fontWeight: 600 }}>Rp {trip.tolls?.reduce((a, b) => a + b, 0).toLocaleString('id-ID')}</span>
+                    </div>
+                    <div style={{ gridColumn: 'span 2', marginTop: '0.25rem', paddingTop: '0.25rem', borderTop: '1px dashed #BAE6FD', display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ fontWeight: 700, color: '#0369A1' }}>BIAYA REALISASI:</span>
+                      <span style={{ fontWeight: 800, color: '#0284C7' }}>Rp {trip.totalRealization?.toLocaleString('id-ID')}</span>
+                    </div>
+                  </div>
+
+                  {/* FOTO BUKTI REAL-TIME */}
+                  {(trip.startKmPhotoUrl || trip.endKmPhotoUrl || (trip.tollPhotoUrls && trip.tollPhotoUrls.length > 0)) && (
+                    <div style={{ marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px dashed #BAE6FD' }}>
+                      <div style={{ fontSize: '0.65rem', fontWeight: 800, color: '#0369A1', textTransform: 'uppercase', marginBottom: '0.5rem' }}>📸 Foto Bukti Driver</div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+                        {trip.startKmPhotoUrl && (
+                          <a href={trip.startKmPhotoUrl} target="_blank" rel="noopener noreferrer">
+                            <div style={{ position: 'relative' }}>
+                              <img src={trip.startKmPhotoUrl} alt="Odometer Awal" style={{ width: '56px', height: '56px', objectFit: 'cover', borderRadius: '8px', border: '2px solid #BAE6FD', display: 'block' }} />
+                              <span style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(3,105,161,0.75)', color: 'white', fontSize: '0.45rem', fontWeight: 700, textAlign: 'center', borderRadius: '0 0 6px 6px', padding: '1px' }}>KM AWAL</span>
+                            </div>
+                          </a>
+                        )}
+                        {trip.endKmPhotoUrl && (
+                          <a href={trip.endKmPhotoUrl} target="_blank" rel="noopener noreferrer">
+                            <div style={{ position: 'relative' }}>
+                              <img src={trip.endKmPhotoUrl} alt="Odometer Akhir" style={{ width: '56px', height: '56px', objectFit: 'cover', borderRadius: '8px', border: '2px solid #BAE6FD', display: 'block' }} />
+                              <span style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(3,105,161,0.75)', color: 'white', fontSize: '0.45rem', fontWeight: 700, textAlign: 'center', borderRadius: '0 0 6px 6px', padding: '1px' }}>KM AKHIR</span>
+                            </div>
+                          </a>
+                        )}
+                        {trip.tollPhotoUrls?.map((url: string, i: number) => (
+                          <a key={i} href={url} target="_blank" rel="noopener noreferrer">
+                            <div style={{ position: 'relative' }}>
+                              <img src={url} alt={`Struk Tol ${i + 1}`} style={{ width: '56px', height: '56px', objectFit: 'cover', borderRadius: '8px', border: '2px solid #BAE6FD', display: 'block' }} />
+                              <span style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(3,105,161,0.75)', color: 'white', fontSize: '0.45rem', fontWeight: 700, textAlign: 'center', borderRadius: '0 0 6px 6px', padding: '1px' }}>TOL {i + 1}</span>
+                            </div>
+                          </a>
+                        ))}
                       </div>
-                      <div>
-                         <span style={{ color: '#0369A1', fontSize: '0.65rem', display: 'block' }}>TOTAL TOL</span>
-                         <span style={{ fontWeight: 600 }}>Rp {trip.tolls?.reduce((a,b) => a+b, 0).toLocaleString('id-ID')}</span>
-                      </div>
-                      <div style={{ gridColumn: 'span 2', marginTop: '0.25rem', paddingTop: '0.25rem', borderTop: '1px dashed #BAE6FD', display: 'flex', justifyContent: 'space-between' }}>
-                         <span style={{ fontWeight: 700, color: '#0369A1' }}>BIAYA REALISASI:</span>
-                         <span style={{ fontWeight: 800, color: '#0284C7' }}>Rp {trip.totalRealization?.toLocaleString('id-ID')}</span>
-                      </div>
-                   </div>
+                      <p style={{ fontSize: '0.6rem', color: '#93C5FD', marginTop: '0.25rem' }}>Klik thumbnail untuk lihat foto penuh</p>
+                    </div>
+                  )}
+
+                  {/* Jika tidak ada foto sama sekali */}
+                  {!trip.startKmPhotoUrl && !trip.endKmPhotoUrl && (!trip.tollPhotoUrls || trip.tollPhotoUrls.length === 0) && (
+                    <div style={{ marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px dashed #BAE6FD', fontSize: '0.7rem', color: '#93C5FD', fontStyle: 'italic' }}>
+                      Tidak ada foto bukti dilampirkan
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Status ongoing: tampilkan foto KM Awal jika sudah ada */}
+              {trip.status === 'ongoing' && trip.startKmPhotoUrl && (
+                <div style={{ margin: '0.5rem 0 1rem', padding: '0.75rem', background: '#FFFBEB', borderRadius: '10px', border: '1px solid #FCD34D' }}>
+                  <div style={{ fontSize: '0.65rem', fontWeight: 800, color: '#92400E', textTransform: 'uppercase', marginBottom: '0.4rem' }}>📸 Foto Odometer Awal</div>
+                  <a href={trip.startKmPhotoUrl} target="_blank" rel="noopener noreferrer">
+                    <img src={trip.startKmPhotoUrl} alt="Odometer Awal" style={{ width: '60px', height: '60px', objectFit: 'cover', borderRadius: '8px', border: '2px solid #FCD34D' }} />
+                  </a>
+                  <p style={{ fontSize: '0.6rem', color: '#B45309', marginTop: '0.2rem' }}>Klik untuk lihat penuh</p>
                 </div>
               )}
 

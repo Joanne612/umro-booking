@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/context/ToastContext";
 import {
@@ -10,6 +10,7 @@ import {
   DriverTrip
 } from "@/lib/firebase/firestore";
 import styles from "../dashboard.module.css";
+import { uploadToCloudinary, validateImageFile } from "../../../lib/cloudinary";
 
 export default function AssignedTripsPage() {
   const { user } = useAuth();
@@ -28,6 +29,19 @@ export default function AssignedTripsPage() {
 
   const [processingStatus, setProcessingStatus] = useState(false);
 
+  // States untuk foto bukti
+  const [startKmPhoto, setStartKmPhoto] = useState<File | null>(null);
+  const [startKmPhotoPreview, setStartKmPhotoPreview] = useState<string>("");
+  const [endKmPhoto, setEndKmPhoto] = useState<File | null>(null);
+  const [endKmPhotoPreview, setEndKmPhotoPreview] = useState<string>("");
+  const [tollPhotos, setTollPhotos] = useState<File[]>([]);
+  const [tollPhotoPreviews, setTollPhotoPreviews] = useState<string[]>([]);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [isUploading, setIsUploading] = useState(false);
+  const startKmPhotoRef = useRef<HTMLInputElement>(null);
+  const endKmPhotoRef = useRef<HTMLInputElement>(null);
+  const tollPhotoRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     if (!user?.uid) return;
 
@@ -41,7 +55,12 @@ export default function AssignedTripsPage() {
 
   const handleOpenKmModal = (trip: DriverTrip, type: 'start' | 'end') => {
     setKmModal({ isOpen: true, trip, type });
-    
+    // Reset foto states
+    setStartKmPhoto(null); setStartKmPhotoPreview("");
+    setEndKmPhoto(null); setEndKmPhotoPreview("");
+    setTollPhotos([]); setTollPhotoPreviews([]);
+    setUploadProgress(0);
+
     if (type === 'start') {
       setKmValue(String(trip.startKm || ""));
       setTolls([""]);
@@ -55,6 +74,46 @@ export default function AssignedTripsPage() {
       setParkingCost(trip.parkingCost ? String(trip.parkingCost) : "");
       setOtherCost(trip.otherCost ? String(trip.otherCost) : "");
     }
+  };
+
+  // Handler pilih foto KM Awal
+  const handleStartKmPhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const err = validateImageFile(file);
+    if (err) { showToast(err, "error"); return; }
+    setStartKmPhoto(file);
+    setStartKmPhotoPreview(URL.createObjectURL(file));
+  };
+
+  // Handler pilih foto KM Akhir
+  const handleEndKmPhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const err = validateImageFile(file);
+    if (err) { showToast(err, "error"); return; }
+    setEndKmPhoto(file);
+    setEndKmPhotoPreview(URL.createObjectURL(file));
+  };
+
+  // Handler pilih foto Struk Tol (bisa multiple)
+  const handleTollPhotos = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+    for (const file of files) {
+      const err = validateImageFile(file);
+      if (err) { showToast(err, "error"); return; }
+    }
+    const combined = [...tollPhotos, ...files];
+    setTollPhotos(combined);
+    setTollPhotoPreviews(combined.map(f => URL.createObjectURL(f)));
+  };
+
+  const handleRemoveTollPhoto = (idx: number) => {
+    const newFiles = tollPhotos.filter((_, i) => i !== idx);
+    const newPreviews = tollPhotoPreviews.filter((_, i) => i !== idx);
+    setTollPhotos(newFiles);
+    setTollPhotoPreviews(newPreviews);
   };
 
   const handleAddToll = () => setTolls([...tolls, ""]);
@@ -81,34 +140,43 @@ export default function AssignedTripsPage() {
 
   const handleConfirmKm = async (isDraft: boolean = false) => {
     if (!kmModal || !kmModal.trip?.id) return;
-    
+
     // KM Awal validation
     if (kmModal.type === 'start' && (!kmValue || isNaN(Number(kmValue)))) {
       showToast("Mohon masukkan angka KM Awal yang valid", "warning");
       return;
     }
 
-    // KM Akhir validation (only if submitting, draft can be empty/incomplete)
+    // KM Akhir validation (only if submitting)
     if (!isDraft && kmModal.type === 'end') {
-        if (!kmValue || isNaN(Number(kmValue))) {
-            showToast("Mohon masukkan angka KM Akhir yang valid", "warning");
-            return;
-        }
-        if (Number(kmValue) < (kmModal.trip.startKm || 0)) {
-            showToast("KM Akhir tidak boleh lebih kecil dari KM Awal (" + kmModal.trip.startKm + ")", "error");
-            return;
-        }
+      if (!kmValue || isNaN(Number(kmValue))) {
+        showToast("Mohon masukkan angka KM Akhir yang valid", "warning");
+        return;
+      }
+      if (Number(kmValue) < (kmModal.trip.startKm || 0)) {
+        showToast("KM Akhir tidak boleh lebih kecil dari KM Awal (" + kmModal.trip.startKm + ")", "error");
+        return;
+      }
     }
 
     setProcessingStatus(true);
+    setIsUploading(false);
     try {
       const updates: any = {};
-      
+
       if (kmModal.type === 'start') {
         updates.status = 'ongoing';
         updates.startKm = Number(kmValue);
+
+        // Upload foto odometer awal jika ada
+        if (startKmPhoto) {
+          setIsUploading(true);
+          setUploadProgress(0);
+          const result = await uploadToCloudinary(startKmPhoto, "umro-booking/odometer", (p: number) => setUploadProgress(p));
+          updates.startKmPhotoUrl = result.url;
+          setIsUploading(false);
+        }
       } else {
-        // Status remains 'ongoing' if draft, 'completed' if submitted
         updates.status = isDraft ? 'ongoing' : 'completed';
         updates.endKm = kmValue ? Number(kmValue) : (kmModal.trip.endKm || 0);
         updates.tolls = tolls.map(t => Number(t) || 0).filter(t => t > 0);
@@ -117,20 +185,46 @@ export default function AssignedTripsPage() {
         updates.otherCost = Number(otherCost) || 0;
         updates.sppdCost = kmModal.trip.sppdCost || 0;
         updates.totalRealization = totalRealization;
+
+        // Upload foto odometer akhir
+        if (endKmPhoto) {
+          setIsUploading(true);
+          setUploadProgress(0);
+          const result = await uploadToCloudinary(endKmPhoto, "umro-booking/odometer", (p: number) => setUploadProgress(p));
+          updates.endKmPhotoUrl = result.url;
+          setIsUploading(false);
+        }
+
+        // Upload foto struk tol (bisa multiple)
+        if (tollPhotos.length > 0) {
+          setIsUploading(true);
+          const uploadedUrls: string[] = [];
+          for (let i = 0; i < tollPhotos.length; i++) {
+            setUploadProgress(0);
+            const result = await uploadToCloudinary(tollPhotos[i], "umro-booking/toll-receipts", (p: number) =>
+              setUploadProgress(Math.round(((i / tollPhotos.length) + p / 100 / tollPhotos.length) * 100))
+            );
+            uploadedUrls.push(result.url);
+          }
+          updates.tollPhotoUrls = uploadedUrls;
+          setIsUploading(false);
+        }
       }
 
       await updateDriverTrip(kmModal.trip.id, updates);
-      
-      const successMsg = kmModal.type === 'start' 
-        ? "Perjalanan dimulai!" 
+
+      const successMsg = kmModal.type === 'start'
+        ? "Perjalanan dimulai!"
         : (isDraft ? "Draft laporan disimpan!" : "Tugas berhasil diselesaikan!");
-        
+
       showToast(successMsg, "success");
       setKmModal(null);
     } catch (error: any) {
       showToast("Gagal memproses: " + error.message, "error");
     } finally {
       setProcessingStatus(false);
+      setIsUploading(false);
+      setUploadProgress(0);
     }
   };
 
@@ -301,6 +395,31 @@ export default function AssignedTripsPage() {
                       <span style={{ fontWeight: 800, color: '#059669' }}>Rp {trip.totalRealization?.toLocaleString('id-ID')}</span>
                     </div>
                   </div>
+
+                  {/* Foto Bukti */}
+                  {(trip.startKmPhotoUrl || trip.endKmPhotoUrl || (trip.tollPhotoUrls && trip.tollPhotoUrls.length > 0)) && (
+                    <div style={{ marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px dashed #BBF7D0' }}>
+                      <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#166534', textTransform: 'uppercase', marginBottom: '0.5rem' }}>📸 Foto Bukti</div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                        {trip.startKmPhotoUrl && (
+                          <a href={trip.startKmPhotoUrl} target="_blank" rel="noopener noreferrer" title="Odometer Awal">
+                            <img src={trip.startKmPhotoUrl} alt="Odometer Awal" style={{ width: '60px', height: '60px', objectFit: 'cover', borderRadius: '8px', border: '2px solid #BBF7D0' }} />
+                          </a>
+                        )}
+                        {trip.endKmPhotoUrl && (
+                          <a href={trip.endKmPhotoUrl} target="_blank" rel="noopener noreferrer" title="Odometer Akhir">
+                            <img src={trip.endKmPhotoUrl} alt="Odometer Akhir" style={{ width: '60px', height: '60px', objectFit: 'cover', borderRadius: '8px', border: '2px solid #BBF7D0' }} />
+                          </a>
+                        )}
+                        {trip.tollPhotoUrls?.map((url: string, i: number) => (
+                          <a key={i} href={url} target="_blank" rel="noopener noreferrer" title={`Struk Tol ${i + 1}`}>
+                            <img src={url} alt={`Struk Tol ${i + 1}`} style={{ width: '60px', height: '60px', objectFit: 'cover', borderRadius: '8px', border: '2px solid #BBF7D0' }} />
+                          </a>
+                        ))}
+                      </div>
+                      <p style={{ fontSize: '0.65rem', color: '#86EFAC', marginTop: '0.3rem' }}>Klik foto untuk lihat ukuran penuh</p>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -406,6 +525,47 @@ export default function AssignedTripsPage() {
                 )}
               </div>
 
+              {/* FOTO ODOMETER */}
+              <div style={{ background: '#F8FAFC', padding: '1.25rem', borderRadius: '16px', border: '1px solid #E2E8F0' }}>
+                <label style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: '0.75rem' }}>
+                  📸 Foto Odometer {kmModal.type === 'start' ? 'Awal' : 'Akhir'} <span style={{ fontWeight: 400, textTransform: 'none', color: '#94A3B8' }}>(opsional)</span>
+                </label>
+
+                {/* Input tersembunyi */}
+                <input
+                  ref={kmModal.type === 'start' ? startKmPhotoRef : endKmPhotoRef}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  style={{ display: 'none' }}
+                  onChange={kmModal.type === 'start' ? handleStartKmPhoto : handleEndKmPhoto}
+                />
+
+                {(kmModal.type === 'start' ? startKmPhotoPreview : endKmPhotoPreview) ? (
+                  <div style={{ position: 'relative', display: 'inline-block', width: '100%' }}>
+                    <img
+                      src={kmModal.type === 'start' ? startKmPhotoPreview : endKmPhotoPreview}
+                      alt="Preview odometer"
+                      style={{ width: '100%', maxHeight: '180px', objectFit: 'cover', borderRadius: '12px', border: '2px solid var(--primary)' }}
+                    />
+                    <button
+                      onClick={() => {
+                        if (kmModal.type === 'start') { setStartKmPhoto(null); setStartKmPhotoPreview(""); }
+                        else { setEndKmPhoto(null); setEndKmPhotoPreview(""); }
+                      }}
+                      style={{ position: 'absolute', top: '6px', right: '6px', background: '#EF4444', color: 'white', border: 'none', borderRadius: '50%', width: '26px', height: '26px', cursor: 'pointer', fontWeight: 700, fontSize: '0.75rem' }}
+                    >✕</button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => (kmModal.type === 'start' ? startKmPhotoRef : endKmPhotoRef).current?.click()}
+                    style={{ width: '100%', padding: '1rem', borderRadius: '12px', border: '2px dashed #CBD5E1', background: 'white', cursor: 'pointer', color: '#64748B', fontWeight: 600, fontSize: '0.875rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
+                  >
+                    <span style={{ fontSize: '1.25rem' }}>📷</span> Ambil / Pilih Foto Odometer
+                  </button>
+                )}
+              </div>
+
               {kmModal.type === 'end' && (
                 <>
                   <div style={{ background: '#F8FAFC', padding: '1.25rem', borderRadius: '16px', border: '1px solid #E2E8F0' }}>
@@ -459,6 +619,56 @@ export default function AssignedTripsPage() {
                     </div>
                   </div>
 
+                  {/* FOTO STRUK TOL */}
+                  <div style={{ background: '#F8FAFC', padding: '1.25rem', borderRadius: '16px', border: '1px solid #E2E8F0' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                      <label style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                        🧾 Foto Struk Tol <span style={{ fontWeight: 400, textTransform: 'none', color: '#94A3B8' }}>(opsional)</span>
+                      </label>
+                      <button
+                        onClick={() => tollPhotoRef.current?.click()}
+                        style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--primary)', border: 'none', background: 'none', cursor: 'pointer' }}
+                      >+ Tambah Foto</button>
+                    </div>
+                    <input
+                      ref={tollPhotoRef}
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      multiple
+                      style={{ display: 'none' }}
+                      onChange={handleTollPhotos}
+                    />
+                    {tollPhotoPreviews.length > 0 ? (
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem' }}>
+                        {tollPhotoPreviews.map((src, idx) => (
+                          <div key={idx} style={{ position: 'relative' }}>
+                            <img
+                              src={src}
+                              alt={`Struk tol ${idx + 1}`}
+                              style={{ width: '100%', height: '80px', objectFit: 'cover', borderRadius: '8px', border: '1px solid #E2E8F0' }}
+                            />
+                            <button
+                              onClick={() => handleRemoveTollPhoto(idx)}
+                              style={{ position: 'absolute', top: '3px', right: '3px', background: '#EF4444', color: 'white', border: 'none', borderRadius: '50%', width: '20px', height: '20px', cursor: 'pointer', fontSize: '0.65rem', fontWeight: 700 }}
+                            >✕</button>
+                          </div>
+                        ))}
+                        <button
+                          onClick={() => tollPhotoRef.current?.click()}
+                          style={{ height: '80px', borderRadius: '8px', border: '2px dashed #CBD5E1', background: 'white', cursor: 'pointer', color: '#94A3B8', fontSize: '1.5rem' }}
+                        >+</button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => tollPhotoRef.current?.click()}
+                        style={{ width: '100%', padding: '1rem', borderRadius: '12px', border: '2px dashed #CBD5E1', background: 'white', cursor: 'pointer', color: '#64748B', fontWeight: 600, fontSize: '0.875rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
+                      >
+                        <span style={{ fontSize: '1.25rem' }}>🧾</span> Ambil / Pilih Foto Struk Tol
+                      </button>
+                    )}
+                  </div>
+
                   <div style={{ background: 'var(--primary)', padding: '1.25rem', borderRadius: '20px', color: 'white', marginTop: '0.5rem' }}>
                     <div style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', opacity: 0.9 }}>Total Biaya Realisasi</div>
                     <div style={{ fontSize: '1.5rem', fontWeight: 800 }}>Rp {totalRealization.toLocaleString('id-ID')}</div>
@@ -467,45 +677,58 @@ export default function AssignedTripsPage() {
               )}
             </div>
 
+            {/* PROGRESS BAR UPLOAD */}
+            {isUploading && (
+              <div style={{ marginTop: '1.5rem', padding: '1rem', background: '#F0F9FF', borderRadius: '12px', border: '1px solid #BAE6FD' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '0.8rem', fontWeight: 700, color: '#0369A1' }}>
+                  <span>⬆️ Mengupload foto...</span>
+                  <span>{uploadProgress}%</span>
+                </div>
+                <div style={{ width: '100%', height: '8px', background: '#E0F2FE', borderRadius: '99px', overflow: 'hidden' }}>
+                  <div style={{ height: '100%', width: `${uploadProgress}%`, background: 'var(--primary)', borderRadius: '99px', transition: 'width 0.2s ease' }} />
+                </div>
+              </div>
+            )}
+
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '2.5rem' }}>
-               <div style={{ display: 'flex', gap: '0.75rem' }}>
-                  <button 
-                    onClick={() => setKmModal(null)}
-                    style={{ flex: 1, padding: '1rem', borderRadius: '16px', border: '1px solid #E2E8F0', background: 'white', fontWeight: 700, cursor: 'pointer' }}
+              <div style={{ display: 'flex', gap: '0.75rem' }}>
+                <button
+                  onClick={() => setKmModal(null)}
+                  style={{ flex: 1, padding: '1rem', borderRadius: '16px', border: '1px solid #E2E8F0', background: 'white', fontWeight: 700, cursor: 'pointer' }}
+                >
+                  Batal
+                </button>
+                {kmModal.type === 'end' && (
+                  <button
+                    onClick={() => handleConfirmKm(true)}
+                    disabled={processingStatus}
+                    style={{
+                      flex: 1,
+                      padding: '1rem',
+                      borderRadius: '16px',
+                      border: '1px solid var(--primary)',
+                      background: '#F0F9FF',
+                      color: 'var(--primary)',
+                      fontWeight: 700,
+                      cursor: processingStatus ? 'not-allowed' : 'pointer'
+                    }}
                   >
-                    Batal
+                    {processingStatus ? '...' : 'Simpan Draft'}
                   </button>
-                  {kmModal.type === 'end' && (
-                    <button 
-                      onClick={() => handleConfirmKm(true)}
-                      disabled={processingStatus}
-                      style={{ 
-                        flex: 1, 
-                        padding: '1rem', 
-                        borderRadius: '16px', 
-                        border: '1px solid var(--primary)', 
-                        background: '#F0F9FF', 
-                        color: 'var(--primary)', 
-                        fontWeight: 700, 
-                        cursor: processingStatus ? 'not-allowed' : 'pointer'
-                      }}
-                    >
-                      {processingStatus ? '...' : 'Simpan Draft'}
-                    </button>
-                  )}
-               </div>
-               
-               <button 
+                )}
+              </div>
+
+              <button
                 onClick={() => handleConfirmKm(false)}
                 disabled={processingStatus || (kmModal.type === 'start' && !kmValue)}
-                style={{ 
-                  width: '100%', 
-                  padding: '1rem', 
-                  borderRadius: '16px', 
-                  border: 'none', 
-                  background: kmModal.type === 'start' ? 'var(--primary)' : '#10B981', 
-                  color: 'white', 
-                  fontWeight: 800, 
+                style={{
+                  width: '100%',
+                  padding: '1rem',
+                  borderRadius: '16px',
+                  border: 'none',
+                  background: kmModal.type === 'start' ? 'var(--primary)' : '#10B981',
+                  color: 'white',
+                  fontWeight: 800,
                   cursor: (processingStatus || (kmModal.type === 'start' && !kmValue)) ? 'not-allowed' : 'pointer',
                   opacity: (processingStatus || (kmModal.type === 'start' && !kmValue)) ? 0.6 : 1,
                   boxShadow: kmModal.type === 'start' ? '0 4px 12px rgba(0, 162, 233, 0.2)' : '0 4px 12px rgba(16, 185, 129, 0.2)'

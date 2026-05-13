@@ -146,10 +146,17 @@ export interface MaintenanceRequest {
 
 // Fungsi helper generate ticket ID (mirip createItemRequest)
 const generateMaintenanceTicketId = async (): Promise<string> => {
-  const date = new Date();
-  const dateStr = date.toISOString().slice(2, 10).replace(/-/g, '');
-  const randomStr = Math.random().toString(36).substring(2, 6).toUpperCase();
-  return `MNT-${dateStr}-${randomStr}`;
+  if (!db) throw new Error("Firestore not initialized");
+  const dateStr = new Date().toISOString().slice(2, 10).replace(/-/g, ""); // YYMMDD
+  const prefix = `MNT-${dateStr}-`;
+  const q = query(
+    collection(db, "maintenance_requests"),
+    where("ticketId", ">=", prefix),
+    where("ticketId", "<", prefix + "\uf8ff")
+  );
+  const snap = await getDocs(q);
+  const nextNum = (snap.size + 1).toString().padStart(3, "0");
+  return `${prefix}${nextNum}`;
 };
 
 export const createMaintenanceRequest = async (
@@ -218,7 +225,7 @@ export const subscribeToMaintenanceRequests = (
   statuses: string[],
   callback: (data: MaintenanceRequest[]) => void
 ) => {
-  if (!db) return () => {};
+  if (!db) return () => { };
   const q = query(
     collection(db, "maintenance_requests"),
     where("status", "in", statuses)
@@ -233,7 +240,7 @@ export const subscribeToUserMaintenanceRequests = (
   userId: string,
   callback: (data: MaintenanceRequest[]) => void
 ) => {
-  if (!db) return () => {};
+  if (!db) return () => { };
   const q = query(
     collection(db, "maintenance_requests"),
     where("userId", "==", userId)
@@ -247,7 +254,7 @@ export const subscribeToUserMaintenanceRequests = (
 export const subscribeToAllMaintenanceRequests = (
   callback: (data: MaintenanceRequest[]) => void
 ) => {
-  if (!db) return () => {};
+  if (!db) return () => { };
   const q = query(collection(db, "maintenance_requests"));
   return onSnapshot(q, (snap) => {
     const data = snap.docs.map((d) => ({ id: d.id, ...d.data() } as MaintenanceRequest));
@@ -333,6 +340,10 @@ export interface DriverTrip {
   otherCost?: number;
   sppdCost?: number;
   totalRealization?: number;
+  // Foto bukti (URL Cloudinary)
+  startKmPhotoUrl?: string;
+  endKmPhotoUrl?: string;
+  tollPhotoUrls?: string[];
 }
 
 // ================= USER ROLES =================
