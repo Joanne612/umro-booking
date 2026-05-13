@@ -8,11 +8,13 @@ export interface UploadResult {
 
 /**
  * Upload gambar ke Cloudinary langsung dari browser (unsigned upload).
- * Strategi kompresi:
+ * Strategi kompresi dilakukan via URL transformation (on-the-fly):
  * - q_auto:best  → Cloudinary pilih kualitas optimal (tajam, tidak blur)
  * - f_auto       → Format terbaik (WebP/AVIF di browser modern)
  * - w_1920,c_limit → Max lebar 1920px, tidak upscale
- * Hasilnya: foto tetap jelas/tajam tapi ukuran file jauh lebih kecil.
+ *
+ * Catatan: eager & eager_async tidak digunakan karena tidak kompatibel
+ * dengan unsigned preset yang menyertakan parameter folder.
  */
 export const uploadToCloudinary = (
     file: File,
@@ -24,11 +26,6 @@ export const uploadToCloudinary = (
         formData.append("file", file);
         formData.append("upload_preset", UPLOAD_PRESET);
         formData.append("folder", folder);
-        // q_auto:best = kualitas tinggi otomatis, tidak blur
-        // f_auto = format paling efisien per browser
-        // w_1920,c_limit = max 1920px lebar, tidak diperbesar
-        formData.append("eager", "q_auto:best,f_auto,w_1920,c_limit");
-        formData.append("eager_async", "false");
 
         const xhr = new XMLHttpRequest();
         xhr.open("POST", `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`);
@@ -42,8 +39,15 @@ export const uploadToCloudinary = (
         xhr.onload = () => {
             if (xhr.status === 200) {
                 const data = JSON.parse(xhr.responseText);
-                // Pakai eager URL jika tersedia (sudah ditransformasi), fallback ke secure_url
-                const url = data.eager?.[0]?.secure_url || data.secure_url;
+                // Sisipkan transformasi kompresi langsung ke URL (on-the-fly)
+                // q_auto:best = kualitas tinggi otomatis, tidak blur
+                // f_auto = format paling efisien per browser
+                // w_1920,c_limit = max 1920px lebar, tidak diperbesar
+                const rawUrl: string = data.secure_url;
+                const url = rawUrl.replace(
+                    "/upload/",
+                    "/upload/q_auto:best,f_auto,w_1920,c_limit/"
+                );
                 resolve({ url, publicId: data.public_id });
             } else {
                 let msg = `Upload gagal (${xhr.status})`;
