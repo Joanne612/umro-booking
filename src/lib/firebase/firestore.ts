@@ -86,7 +86,9 @@ export interface VehicleBooking {
   assignedTripType?: "Perjalanan Dalam Kota" | "Perjalanan Luar Kota";
   assignedSppd?: string;
   assignedSppdCost?: number;
+  assignedLodgingCost?: number;
   assignedPersekot?: number;
+  assignedCity?: string;
 }
 
 export interface ItemRequest {
@@ -284,6 +286,7 @@ export interface DriverRate {
   additionalDays: string; // Misal: "1 Hari"
   rate: number;
   lodgingRate?: number;
+  lodgingCost?: number; // Alias untuk lodgingRate jika ada inkonsistensi
   createdAt?: any;
 }
 
@@ -318,6 +321,9 @@ export interface DriverTrip {
   contact: string;
   vehicleType: string;
   sppd: string;
+  sppdCost?: number;
+  lodgingCost?: number;
+  city?: string;
   tripType: "Perjalanan Dalam Kota" | "Perjalanan Luar Kota";
   persekot: number;
   status: "pending" | "ongoing" | "completed";
@@ -338,7 +344,6 @@ export interface DriverTrip {
   fuelCost?: number;
   parkingCost?: number;
   otherCost?: number;
-  sppdCost?: number;
   totalRealization?: number;
   // Foto bukti (URL Cloudinary)
   startKmPhotoUrl?: string;
@@ -915,7 +920,9 @@ export const validateVehicleBooking = async (
     tripType: "Perjalanan Dalam Kota" | "Perjalanan Luar Kota";
     sppd: string;
     sppdCost: number;
+    lodgingCost?: number;
     persekot: number;
+    city: string;
   }
 ) => {
   if (!db) return;
@@ -942,6 +949,8 @@ export const validateVehicleBooking = async (
     updates.assignedSppd = assignmentData.sppd;
     updates.assignedPersekot = assignmentData.persekot;
     updates.assignedSppdCost = assignmentData.sppdCost || 0;
+    updates.assignedLodgingCost = assignmentData.lodgingCost || 0;
+    updates.assignedCity = assignmentData.city || "";
   }
 
   await updateDoc(bookingRef, updates);
@@ -963,9 +972,11 @@ export const validateVehicleBooking = async (
       contact: assignmentData.driverPhone || "",
       vehicleType: assignmentData.vehicleType || "",
       sppd: assignmentData.sppd || "-",
+      sppdCost: assignmentData.sppdCost || 0,
+      lodgingCost: assignmentData.lodgingCost || 0,
+      city: assignmentData.city || "",
       tripType: assignmentData.tripType || "Perjalanan Dalam Kota",
       persekot: assignmentData.persekot || 0,
-      sppdCost: assignmentData.sppdCost || 0,
       status: "pending",
       createdAt: Timestamp.now(),
       bookingId: bookingId,

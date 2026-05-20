@@ -406,6 +406,13 @@ export default function AssignedTripsPage() {
                 </div>
               </div>
 
+              {trip.city && (
+                <div style={{ marginBottom: '1.25rem', padding: '0.75rem', background: '#FFF7ED', borderRadius: '12px', border: '1px solid #FFEDD5' }}>
+                  <div style={{ fontSize: '0.65rem', fontWeight: 800, color: '#9A3412', textTransform: 'uppercase', marginBottom: '0.25rem' }}>🏙️ Kota Penugasan (SPPD)</div>
+                  <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#C2410C' }}>{trip.city}</div>
+                </div>
+              )}
+
               <div style={{ marginBottom: '1.25rem', padding: '0.75rem', background: '#F8FAFC', borderRadius: '12px', border: '1px solid #F1F5F9' }}>
                 <div style={{ fontSize: '0.65rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.5rem' }}>👤 Pemohon / PIC</div>
                 <div style={{ fontWeight: 700, fontSize: '1rem' }}>{trip.userName || "-"}</div>
@@ -422,6 +429,23 @@ export default function AssignedTripsPage() {
                   <div style={{ fontSize: '0.85rem', fontWeight: 700 }}>{trip.tripOption || "-"}</div>
                 </div>
               </div>
+
+              {trip.sppd && trip.sppd !== "-" && (
+                <div style={{ marginBottom: '1.25rem', padding: '1rem', background: '#F0FDF4', borderRadius: '16px', border: '1px solid #DCFCE7' }}>
+                  <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#166534', textTransform: 'uppercase', marginBottom: '0.5rem', borderBottom: '1px solid #BBF7D0', paddingBottom: '0.25rem' }}>💰 Dana SPPD (Driver)</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                      <span style={{ color: '#166534', fontWeight: 500 }}>Uang Saku:</span>
+                      <span style={{ fontWeight: 800, color: '#059669' }}>Rp {(trip.sppdCost || 0).toLocaleString('id-ID')}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                      <span style={{ color: '#166534', fontWeight: 500 }}>Uang Penginapan:</span>
+                      <span style={{ fontWeight: 800, color: '#059669' }}>Rp {(trip.lodgingCost || 0).toLocaleString('id-ID')}</span>
+                    </div>
+                    <div style={{ fontSize: '0.65rem', color: '#166534', marginTop: '0.25rem', fontStyle: 'italic' }}>Kategori: {trip.sppd}</div>
+                  </div>
+                </div>
+              )}
 
               <div style={{ marginBottom: '1.25rem' }}>
                 <div style={{ fontSize: '0.65rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.25rem' }}>Kegiatan / Acara</div>
@@ -457,6 +481,14 @@ export default function AssignedTripsPage() {
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                       <span style={{ color: '#166534' }}>BBM:</span>
                       <span style={{ fontWeight: 600 }}>Rp {trip.fuelCost?.toLocaleString('id-ID')}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: '#166534' }}>Uang Saku:</span>
+                      <span style={{ fontWeight: 600 }}>Rp {(trip.sppdCost || 0).toLocaleString('id-ID')}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: '#166534' }}>Uang Penginapan:</span>
+                      <span style={{ fontWeight: 600 }}>Rp {(trip.lodgingCost || 0).toLocaleString('id-ID')}</span>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                       <span style={{ color: '#166534' }}>Persekot Driver:</span>

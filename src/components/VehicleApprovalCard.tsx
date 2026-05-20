@@ -65,7 +65,7 @@ export default function VehicleApprovalCard({
           )}
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
             <span style={{ fontSize: '0.7rem', fontWeight: 800, color: userRole === 'koordinator_driver' ? 'var(--primary)' : '#10B981', textTransform: 'uppercase' }}>
-              {booking.validatedByName ? `Divalidasi: ${booking.validatedByName}` : 'Tujuan Ke:'}
+              {booking.validatedByName ? `Divalidasi: ${booking.validatedByName}` : 'Kegiatan / Acara:'}
             </span>
             {isHistory && (
               <span style={{
@@ -81,7 +81,7 @@ export default function VehicleApprovalCard({
               </span>
             )}
           </div>
-          <h3 style={{ fontSize: '1.25rem', fontWeight: 800 }}>{booking.destination}</h3>
+          <h3 style={{ fontSize: '1.25rem', fontWeight: 800 }}>{booking.event}</h3>
           <div style={{ fontSize: '0.85rem', color: 'var(--primary)', fontWeight: 700, marginTop: '0.25rem' }}>
             👤 PIC/Peminjam: {booking.userName}
           </div>
@@ -110,6 +110,10 @@ export default function VehicleApprovalCard({
           <div style={{ fontSize: '0.8125rem', color: 'var(--text-main)', lineHeight: 1.4 }}>📍 {booking.pickupLocation}</div>
         </div>
         <div>
+          <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '0.5rem' }}>TUJUAN</label>
+          <div style={{ fontWeight: 600, color: 'var(--primary)' }}>🏁 {booking.destination}</div>
+        </div>
+        <div>
           <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '0.5rem' }}>DETAIL PERJALANAN</label>
           <div style={{ fontSize: '0.875rem' }}>🔁 Tipe: <b>{booking.tripType === 'pp' ? 'Pulang Pergi' : 'Sekali Jalan'}</b></div>
           <div style={{ fontSize: '0.875rem' }}>👥 Penumpang: <b>{booking.passengers} Orang</b></div>
@@ -117,39 +121,42 @@ export default function VehicleApprovalCard({
 
         <div style={{ gridColumn: '1 / -1' }}>
           <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '0.5rem' }}>
-            {(!isHistory && userRole === 'koordinator_driver') ? 'ACARA / KEGIATAN' : 'INFO ARMADA & DRIVER'}
+            INFO ARMADA & DRIVER
           </label>
-          {(!isHistory && userRole === 'koordinator_driver') ? (
-            <div style={{ padding: '0.75rem', background: '#F8FAFC', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', fontSize: '0.875rem' }}>
-              {booking.event}
-            </div>
-          ) : (
-            <div style={{ padding: '1rem', background: '#F0F9FF', borderRadius: 'var(--radius-md)', border: '1px solid #BAE6FD', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-              <div style={{ fontSize: '0.875rem', fontWeight: 500, whiteSpace: 'pre-wrap', color: '#0369A1' }}>{booking.vehicleNotes || "Belum ada catatan armada."}</div>
-              {onEdit && userRole === 'koordinator_driver' && (
-                <button
-                  onClick={() => onEdit(booking)}
-                  style={{ background: 'white', color: 'var(--primary)', padding: '0.25rem 0.5rem', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 700, cursor: 'pointer', border: '1px solid var(--primary)' }}
-                >
-                  📝 Edit
-                </button>
-              )}
-            </div>
-          )}
+          <div style={{ padding: '1rem', background: '#F0F9FF', borderRadius: 'var(--radius-md)', border: '1px solid #BAE6FD', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div style={{ fontSize: '0.875rem', fontWeight: 500, whiteSpace: 'pre-wrap', color: '#0369A1' }}>{booking.vehicleNotes || "Belum ada catatan armada."}</div>
+            {onEdit && userRole === 'koordinator_driver' && (
+              <button
+                onClick={() => onEdit(booking)}
+                style={{ background: 'white', color: 'var(--primary)', padding: '0.25rem 0.5rem', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 700, cursor: 'pointer', border: '1px solid var(--primary)' }}
+              >
+                📝 Edit
+              </button>
+            )}
+          </div>
         </div>
 
-        {isHistory && (userRole === 'admin' || userRole === 'asman') && (
-          <div style={{ gridColumn: '1 / -1' }}>
-            <label style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)' }}>ACARA / KEGIATAN</label>
-            <div style={{ padding: '0.75rem', background: '#F8FAFC', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', fontSize: '0.8125rem' }}>
-              {booking.event}
-            </div>
-          </div>
-        )}
 
         {booking.status === 'rejected' && booking.rejectReason && (
           <div style={{ gridColumn: '1 / -1', padding: '0.75rem', background: '#FEF2F2', borderRadius: 'var(--radius-sm)', border: '1px solid #FEE2E2', color: '#991B1B', fontSize: '0.8125rem' }}>
             <b>Alasan Penolakan:</b> {booking.rejectReason}
+          </div>
+        )}
+
+        {booking.assignedSppd && (
+          <div style={{ gridColumn: '1 / -1', padding: '1rem', background: '#F0FDF4', borderRadius: '12px', border: '1px solid #DCFCE7' }}>
+            <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#166534', textTransform: 'uppercase', marginBottom: '0.5rem', display: 'block' }}>💰 DANA SPPD PENUGASAN (DRIVER)</label>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+              <div>
+                <div style={{ fontSize: '0.75rem', color: '#166534' }}>Uang Saku (Makan):</div>
+                <div style={{ fontWeight: 800, color: '#059669', fontSize: '0.95rem' }}>Rp {(booking.assignedSppdCost || 0).toLocaleString('id-ID')}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: '0.75rem', color: '#166534' }}>Uang Penginapan:</div>
+                <div style={{ fontWeight: 800, color: '#059669', fontSize: '0.95rem' }}>Rp {(booking.assignedLodgingCost || 0).toLocaleString('id-ID')}</div>
+              </div>
+            </div>
+            <div style={{ fontSize: '0.65rem', color: '#166534', marginTop: '0.5rem', fontStyle: 'italic' }}>Kategori: {booking.assignedSppd}</div>
           </div>
         )}
       </div>
@@ -181,7 +188,7 @@ export default function VehicleApprovalCard({
                 className="btn-primary"
                 style={{ padding: '0.6rem 2rem', background: userRole === 'koordinator_driver' ? '#0ea5e9' : '#10B981' }}
               >
-                {userRole === 'koordinator_driver' ? '✓ Validasi & Setujui' : '✓ Mengetahui'}
+                {userRole === 'koordinator_driver' || userRole === 'admin' ? '✓ Validasi & Setujui' : '✓ Setujui'}
               </button>
             </>
           )}

@@ -45,9 +45,12 @@ export default function VehicleApprovalsPage() {
   const [tripType, setTripType] = useState<"Perjalanan Dalam Kota" | "Perjalanan Luar Kota">("Perjalanan Dalam Kota");
   const [sppd, setSppd] = useState("");
   const [sppdCost, setSppdCost] = useState(0);
+  const [lodgingCost, setLodgingCost] = useState(0);
   const [displaySppdCost, setDisplaySppdCost] = useState("0");
   const [persekot, setPersekot] = useState(0);
   const [displayPersekot, setDisplayPersekot] = useState("0");
+  const [selectedCity, setSelectedCity] = useState("");
+  const [availableCities, setAvailableCities] = useState<string[]>([]);
 
   // Edit State
   const [editingBooking, setEditingBooking] = useState<VehicleBooking | null>(null);
@@ -110,6 +113,17 @@ export default function VehicleApprovalsPage() {
     );
   }, [bookings, searchQuery]);
   
+  useEffect(() => {
+    if (tripType === "Perjalanan Dalam Kota") {
+      setSppd("");
+      setSppdCost(0);
+      setLodgingCost(0);
+      setDisplaySppdCost("0");
+      setAvailableCities([]);
+      setSelectedCity("");
+    }
+  }, [tripType]);
+
   const handleSelectionChange = (driverId: string, vehicleId: string) => {
     setSelectedDriverId(driverId);
     setSelectedVehicleId(vehicleId);
@@ -131,13 +145,25 @@ export default function VehicleApprovalsPage() {
     if (!val) {
       setSppdCost(0);
       setDisplaySppdCost("0");
+      setAvailableCities([]);
+      setSelectedCity("");
       return;
     }
     // Find rate
     const selectedRate = rates.find(r => `${r.category} - ${r.description}` === val);
     if (selectedRate) {
       setSppdCost(selectedRate.rate);
+      const rateLodging = selectedRate.lodgingRate || (selectedRate as any).lodgingCost || 0;
+      setLodgingCost(rateLodging);
       setDisplaySppdCost(selectedRate.rate.toLocaleString('id-ID'));
+      const areas = selectedRate.coveredAreas || [];
+      setAvailableCities(areas);
+      // Auto-select if only one city
+      if (areas.length === 1) {
+        setSelectedCity(areas[0]);
+      } else {
+        setSelectedCity("");
+      }
     }
   };
 
@@ -170,7 +196,9 @@ export default function VehicleApprovalsPage() {
         tripType: tripType,
         sppd: sppd,
         sppdCost: sppdCost,
-        persekot: persekot
+        lodgingCost: lodgingCost,
+        persekot: persekot,
+        city: selectedCity
       } : undefined;
 
       await validateVehicleBooking(
@@ -188,10 +216,13 @@ export default function VehicleApprovalsPage() {
       setSelectedVehicleId("");
       setSppd("");
       setSppdCost(0);
+      setLodgingCost(0);
       setDisplaySppdCost("0");
       setPersekot(0);
       setDisplayPersekot("0");
       setTripType("Perjalanan Dalam Kota");
+      setSelectedCity("");
+      setAvailableCities([]);
     } catch (error: any) {
       showToast("Gagal memproses: " + error.message, "error");
     } finally {
@@ -430,18 +461,47 @@ export default function VehicleApprovalsPage() {
                 </div>
               </div>
 
-              <div className={styles.formGroup}>
-                <label className={styles.formLabel}>Uang Persekot (Opsional)</label>
-                <div style={{ position: 'relative' }}>
-                  <span style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', fontWeight: 600, color: 'var(--text-muted)', fontSize: '0.8rem' }}>Rp</span>
-                  <input
-                    type="text"
-                    value={displayPersekot}
-                    onChange={handlePersekotChange}
-                    className={styles.textInput}
-                    style={{ paddingLeft: '2.5rem' }}
-                    placeholder="0"
-                  />
+              {sppd && (
+                <div style={{ marginBottom: '1rem', padding: '1rem', background: '#F0FDF4', borderRadius: '12px', border: '1px solid #BBF7D0', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                  <div>
+                    <div style={{ fontSize: '0.65rem', fontWeight: 800, color: '#166534', textTransform: 'uppercase', marginBottom: '0.2rem' }}>Uang Saku (Makan)</div>
+                    <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#166534' }}>Rp {sppdCost.toLocaleString('id-ID')}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '0.65rem', fontWeight: 800, color: '#166534', textTransform: 'uppercase', marginBottom: '0.2rem' }}>Uang Penginapan</div>
+                    <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#166534' }}>Rp {lodgingCost.toLocaleString('id-ID')}</div>
+                  </div>
+                </div>
+              )}
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div className={styles.formGroup}>
+                  <label className={styles.formLabel} style={{ color: !sppd ? '#94a3b8' : 'inherit' }}>Kota Penugasan</label>
+                  <select
+                    disabled={!sppd}
+                    value={selectedCity}
+                    onChange={e => setSelectedCity(e.target.value)}
+                    className={styles.selectField}
+                  >
+                    <option value="">-- Pilih Kota --</option>
+                    {availableCities.map(city => (
+                      <option key={city} value={city}>{city}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className={styles.formGroup}>
+                  <label className={styles.formLabel}>Uang Persekot (Opsional)</label>
+                  <div style={{ position: 'relative' }}>
+                    <span style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', fontWeight: 600, color: 'var(--text-muted)', fontSize: '0.8rem' }}>Rp</span>
+                    <input
+                      type="text"
+                      value={displayPersekot}
+                      onChange={handlePersekotChange}
+                      className={styles.textInput}
+                      style={{ paddingLeft: '2.5rem' }}
+                      placeholder="0"
+                    />
+                  </div>
                 </div>
               </div>
 

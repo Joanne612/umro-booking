@@ -46,10 +46,15 @@ export default function DriverTripsPage() {
     contact: "",
     vehicleType: "",
     sppd: "",
+    sppdCost: 0,
+    lodgingCost: 0,
+    city: "",
     tripType: "Perjalanan Dalam Kota",
     persekot: 0,
     status: "pending"
   });
+ 
+  const [availableCities, setAvailableCities] = useState<string[]>([]);
 
   const [displayPersekot, setDisplayPersekot] = useState("0");
 
@@ -100,6 +105,31 @@ export default function DriverTripsPage() {
     }
   };
 
+  const handleSppdChange = (val: string) => {
+    if (!val) {
+      setFormData(prev => ({ ...prev, sppd: "", city: "" }));
+      setAvailableCities([]);
+      return;
+    }
+    const selectedRate = rates.find(r => `${r.category} - ${r.description}` === val);
+    const areas = selectedRate?.coveredAreas || [];
+    setAvailableCities(areas);
+    setFormData(prev => ({ 
+      ...prev, 
+      sppd: val, 
+      city: areas.length === 1 ? areas[0] : "",
+      sppdCost: selectedRate?.rate || 0,
+      lodgingCost: selectedRate?.lodgingRate || (selectedRate as any)?.lodgingCost || 0
+    }));
+  };
+ 
+  useEffect(() => {
+    if (formData.tripType === "Perjalanan Dalam Kota") {
+      setFormData(prev => ({ ...prev, sppd: "", sppdCost: 0, lodgingCost: 0, city: "" }));
+      setAvailableCities([]);
+    }
+  }, [formData.tripType]);
+
   const handleVehicleChange = (vehicleId: string) => {
     const selectedVehicle = fleet.find(v => v.id === vehicleId);
     if (selectedVehicle) {
@@ -127,10 +157,14 @@ export default function DriverTripsPage() {
       contact: "",
       vehicleType: "",
       sppd: "",
+      sppdCost: 0,
+      lodgingCost: 0,
+      city: "",
       tripType: "Perjalanan Dalam Kota",
       persekot: 0,
       status: "pending"
     });
+    setAvailableCities([]);
     setDisplayPersekot("0");
     setShowModal(true);
   };
@@ -146,10 +180,20 @@ export default function DriverTripsPage() {
       contact: trip.contact,
       vehicleType: trip.vehicleType,
       sppd: trip.sppd,
+      sppdCost: trip.sppdCost || 0,
+      lodgingCost: trip.lodgingCost || 0,
+      city: trip.city || "",
       tripType: trip.tripType,
       persekot: trip.persekot,
       status: trip.status
     });
+    // Populate available cities for editing
+    if (trip.sppd) {
+      const selectedRate = rates.find(r => `${r.category} - ${r.description}` === trip.sppd);
+      setAvailableCities(selectedRate?.coveredAreas || []);
+    } else {
+      setAvailableCities([]);
+    }
     setDisplayPersekot(trip.persekot.toLocaleString('id-ID'));
     setShowModal(true);
   };
@@ -307,6 +351,12 @@ export default function DriverTripsPage() {
                   <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700, marginBottom: '0.2rem' }}>ID TRIP: {trip.tripId}</div>
                   <h3 style={{ fontSize: '1.15rem', fontWeight: 700, margin: 0 }}>{trip.driverName}</h3>
                   <div style={{ fontSize: '0.85rem', color: 'var(--primary)', fontWeight: 600, marginTop: '0.15rem' }}>📞 {trip.contact}</div>
+                  {trip.event && (
+                    <div style={{ marginTop: '0.75rem', padding: '0.6rem 0.8rem', background: '#F8FAFC', borderRadius: '10px', border: '1px solid #E2E8F0', borderLeft: '4px solid var(--primary)' }}>
+                      <div style={{ fontSize: '0.6rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.2rem' }}>Keperluan / Acara</div>
+                      <div style={{ fontSize: '0.875rem', fontWeight: 700, color: 'var(--text-main)', lineHeight: 1.4 }}>{trip.event}</div>
+                    </div>
+                  )}
                 </div>
                 <div style={{ textAlign: 'right' }}>
                   <div style={{
@@ -332,6 +382,13 @@ export default function DriverTripsPage() {
                 </div>
               </div>
 
+              {trip.destination && (
+                <div style={{ marginBottom: '1.25rem', padding: '0.75rem', background: '#F0F9FF', borderRadius: '12px', border: '1px solid #E0F2FE' }}>
+                  <div style={{ fontSize: '0.6rem', fontWeight: 800, color: '#0369A1', textTransform: 'uppercase', marginBottom: '0.2rem' }}>📍 Lokasi Tujuan</div>
+                  <div style={{ fontSize: '0.875rem', fontWeight: 700, color: '#0369A1' }}>{trip.destination}</div>
+                </div>
+              )}
+
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '1.25rem' }}>
                 <div style={{ background: '#F8FAFC', padding: '0.6rem 0.8rem', borderRadius: '12px', border: '1px solid #F1F5F9' }}>
                   <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '0.2rem' }}>Kendaraan</div>
@@ -345,9 +402,27 @@ export default function DriverTripsPage() {
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', marginBottom: '1rem', padding: '0 0.2rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
-                  <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>SPPD:</span>
+                  <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>Kategori SPPD:</span>
                   <span style={{ fontWeight: 600 }}>{trip.sppd || "-"}</span>
                 </div>
+                {trip.sppdCost !== undefined && trip.sppdCost > 0 && (
+                  <>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                      <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>Uang Saku:</span>
+                      <span style={{ fontWeight: 800, color: '#059669' }}>Rp {(trip.sppdCost || 0).toLocaleString('id-ID')}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                      <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>Uang Penginapan:</span>
+                      <span style={{ fontWeight: 800, color: '#059669' }}>Rp {(trip.lodgingCost || 0).toLocaleString('id-ID')}</span>
+                    </div>
+                  </>
+                )}
+                {trip.city && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                    <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>Kota:</span>
+                    <span style={{ fontWeight: 700, color: '#C2410C' }}>{trip.city}</span>
+                  </div>
+                )}
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
                   <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>Persekot:</span>
                   <span style={{ fontWeight: 800, color: '#059669' }}>Rp {trip.persekot.toLocaleString('id-ID')}</span>
@@ -365,6 +440,14 @@ export default function DriverTripsPage() {
                     <div>
                       <span style={{ color: '#0369A1', fontSize: '0.65rem', display: 'block' }}>KM AWAL/AKHIR</span>
                       <span style={{ fontWeight: 600 }}>{trip.startKm || 0} / {trip.endKm || 0}</span>
+                    </div>
+                    <div>
+                      <span style={{ color: '#0369A1', fontSize: '0.65rem', display: 'block' }}>UANG SAKU</span>
+                      <span style={{ fontWeight: 600 }}>Rp {(trip.sppdCost || 0).toLocaleString('id-ID')}</span>
+                    </div>
+                    <div>
+                      <span style={{ color: '#0369A1', fontSize: '0.65rem', display: 'block' }}>PENGINAPAN</span>
+                      <span style={{ fontWeight: 600 }}>Rp {(trip.lodgingCost || 0).toLocaleString('id-ID')}</span>
                     </div>
                     <div>
                       <span style={{ color: '#0369A1', fontSize: '0.65rem', display: 'block' }}>TOTAL TOL</span>
@@ -517,7 +600,7 @@ export default function DriverTripsPage() {
                   <select
                     disabled={formData.tripType === "Perjalanan Dalam Kota"}
                     value={formData.sppd}
-                    onChange={e => setFormData({ ...formData, sppd: e.target.value })}
+                    onChange={e => handleSppdChange(e.target.value)}
                     className={styles.selectField}
                   >
                     <option value="">-- Pilih Kategori SPPD --</option>
@@ -529,7 +612,36 @@ export default function DriverTripsPage() {
                   </select>
                 </div>
                 <div className={styles.formGroup}>
-                  <label className={styles.formLabel}>Persekot</label>
+                  <label className={styles.formLabel} style={{ color: !formData.sppd ? '#94a3b8' : 'inherit' }}>Kota</label>
+                  <select
+                    disabled={!formData.sppd}
+                    value={formData.city}
+                    onChange={e => setFormData({ ...formData, city: e.target.value })}
+                    className={styles.selectField}
+                  >
+                    <option value="">-- Pilih Kota --</option>
+                    {availableCities.map(city => (
+                      <option key={city} value={city}>{city}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {formData.sppd && (
+                <div style={{ marginBottom: '1.5rem', padding: '1rem', background: '#F0FDF4', borderRadius: '12px', border: '1px solid #BBF7D0', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                  <div>
+                    <div style={{ fontSize: '0.65rem', fontWeight: 800, color: '#166534', textTransform: 'uppercase', marginBottom: '0.2rem' }}>Uang Saku (Makan)</div>
+                    <div style={{ fontSize: '1rem', fontWeight: 700, color: '#166534' }}>Rp {formData.sppdCost?.toLocaleString('id-ID')}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '0.65rem', fontWeight: 800, color: '#166534', textTransform: 'uppercase', marginBottom: '0.2rem' }}>Uang Penginapan</div>
+                    <div style={{ fontSize: '1rem', fontWeight: 700, color: '#166534' }}>Rp {formData.lodgingCost?.toLocaleString('id-ID')}</div>
+                  </div>
+                </div>
+              )}
+
+              <div className={styles.formGroup}>
+                <label className={styles.formLabel}>Persekot</label>
                   <div style={{ position: 'relative' }}>
                     <span style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', fontWeight: 600, color: 'var(--text-muted)' }}>Rp</span>
                     <input
@@ -541,7 +653,6 @@ export default function DriverTripsPage() {
                     />
                   </div>
                 </div>
-              </div>
 
               <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem', borderTop: '1px solid var(--border)', paddingTop: '1.5rem' }}>
                 <button type="button" onClick={() => setShowModal(false)} style={{ flex: 1, padding: '0.7rem', borderRadius: 'var(--radius-md)', fontWeight: 600, background: '#F1F5F9', border: 'none', cursor: 'pointer' }}>Batal</button>
