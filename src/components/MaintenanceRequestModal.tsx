@@ -168,20 +168,19 @@ export default function MaintenanceRequestModal({
         setLoading(true);
         try {
             let finalPhotoUrls = [...formData.photoUrls];
+            const { uploadToImgBB } = await import("@/lib/imgbb");
             if (photoFiles.length > 0) {
                 setIsUploading(true);
                 for (let i = 0; i < photoFiles.length; i++) {
                     setUploadProgress(0);
-                    const result = await uploadToCloudinary(
+                    const result = await uploadToImgBB(
                         photoFiles[i],
-                        "umro-booking/maintenance",
                         (p) => setUploadProgress(Math.round(((i / photoFiles.length) + p / 100 / photoFiles.length) * 100))
                     );
                     finalPhotoUrls.push(result.url);
                 }
                 setIsUploading(false);
             }
-
             const { createMaintenanceRequest, updateMaintenanceRequest } = await import(
                 "@/lib/firebase/firestore"
             );

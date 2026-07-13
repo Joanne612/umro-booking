@@ -34,6 +34,8 @@ import ItemRequestModal from "@/components/ItemRequestModal";
 import MaintenanceRequestModal from "@/components/MaintenanceRequestModal";
 import ConfirmationModal from "@/components/ConfirmationModal";
 import styles from "../dashboard.module.css";
+import { exportVehiclesToExcel, getPresetDateRange } from '@/lib/utils/exportVehicleExcel';
+import Swal from 'sweetalert2';
 
 type TabType = "meeting" | "zoom" | "vehicle" | "item" | "maintenance";
 
@@ -54,6 +56,12 @@ export default function MyBookingsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterDate, setFilterDate] = useState("all");
+
+  // Export State
+  const [showExportPanel, setShowExportPanel] = useState(false);
+  const [exportPreset, setExportPreset] = useState<'hari' | 'minggu' | 'bulan' | 'custom'>('bulan');
+  const [exportStartDate, setExportStartDate] = useState('');
+  const [exportEndDate, setExportEndDate] = useState('');
 
   // Modals & Interaction State
   const [isRoomModalOpen, setIsRoomModalOpen] = useState(false);
@@ -365,6 +373,128 @@ export default function MyBookingsPage() {
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
 
+          {/* Tombol export Excel, khusus tab vehicle */}
+          {activeTab === 'vehicle' && (
+          <div style={{ position: 'relative' }}>
+            <button
+              onClick={() => {
+                if (!showExportPanel) {
+                  const range = getPresetDateRange('bulan');
+                  setExportStartDate(range.start);
+                  setExportEndDate(range.end);
+                  setExportPreset('bulan');
+                }
+                setShowExportPanel(!showExportPanel);
+              }}
+              style={{
+                padding: '0.75rem 1.25rem',
+                borderRadius: 'var(--radius-md)',
+                border: '1px solid #10B981',
+                background: '#ECFDF5',
+                color: '#047857',
+                fontWeight: 700,
+                fontSize: '0.85rem',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              📊 Export Excel
+            </button>
+
+            {showExportPanel && (
+              <div style={{
+                position: 'absolute',
+                top: 'calc(100% + 0.5rem)',
+                left: 0,
+                zIndex: 50,
+                background: '#fff',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-md)',
+                boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+                padding: '1.25rem',
+                width: '320px',
+              }}>
+                <div style={{ fontSize: '0.8rem', fontWeight: 800, color: '#334155', marginBottom: '0.75rem' }}>
+                  Pilih Rentang Tanggal
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', marginBottom: '1rem' }}>
+                  <div>
+                    <label style={{ fontSize: '0.7rem', fontWeight: 700, color: '#64748B', display: 'block', marginBottom: '0.25rem' }}>
+                      Dari Tanggal
+                    </label>
+                    <input
+                      type="date"
+                      value={exportStartDate}
+                      onChange={(e) => {
+                        setExportStartDate(e.target.value);
+                        setExportPreset('custom');
+                      }}
+                      style={{ width: '100%', padding: '0.6rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '0.7rem', fontWeight: 700, color: '#64748B', display: 'block', marginBottom: '0.25rem' }}>
+                      Sampai Tanggal
+                    </label>
+                    <input
+                      type="date"
+                      value={exportEndDate}
+                      min={exportStartDate}
+                      onChange={(e) => {
+                        setExportEndDate(e.target.value);
+                        setExportPreset('custom');
+                      }}
+                      style={{ width: '100%', padding: '0.6rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}
+                    />
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => {
+                    if (!exportStartDate || !exportEndDate) {
+                      Swal.fire({
+                        icon: 'warning',
+                        title: 'Tanggal Belum Lengkap',
+                        text: 'Pilih tanggal awal dan akhir terlebih dahulu.',
+                        confirmButtonColor: '#10B981',
+                      });
+                      return;
+                    }
+                    if (new Date(exportStartDate) > new Date(exportEndDate)) {
+                      Swal.fire({
+                        icon: 'warning',
+                        title: 'Tanggal Tidak Valid',
+                        text: 'Tanggal awal tidak boleh lebih lama dari tanggal akhir.',
+                        confirmButtonColor: '#10B981',
+                      });
+                      return;
+                    }
+                    exportVehiclesToExcel(vehicles, exportStartDate, exportEndDate);
+                    setShowExportPanel(false);
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '0.7rem',
+                    borderRadius: 'var(--radius-sm)',
+                    border: 'none',
+                    background: '#10B981',
+                    color: '#fff',
+                    fontWeight: 700,
+                    fontSize: '0.8rem',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Unduh Excel
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Render Meeting & Zoom */}
         {(activeTab === 'meeting' || activeTab === 'zoom') && (
           displayRoomBookings.length === 0 ? (
@@ -510,7 +640,9 @@ export default function MyBookingsPage() {
               <p>Riwayat peminjaman kendaraan Anda akan muncul di sini.</p>
             </div>
           ) : (
-            filteredVehicles.map(v => (
+            [...filteredVehicles]
+          .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+          .map(v => (
               <div key={v.id} className={styles.card} style={{
                 borderLeft: `4px solid ${v.status === 'approved' ? '#10B981' : v.status === 'rejected' ? '#EF4444' : '#F59E0B'}`
               }}>

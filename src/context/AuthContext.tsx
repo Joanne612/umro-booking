@@ -75,6 +75,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const name = userInfo?.name || currentUser.displayName || currentUser.email || "";
 
           setUserRole(role);
+          console.log('DEBUG userRole:', JSON.stringify(role)); // tambahin ini sementara
           setUserName(name);
           setUser(currentUser);
         } catch (err) {

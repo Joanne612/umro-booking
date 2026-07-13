@@ -330,7 +330,7 @@ export default function BookingDetailModal({ booking, onClose, onRefresh, roomTy
                   )}
                 </div>
 
-                {/* --- SEKSI EKSPOR / LAPORAN (Hidden for Zoom) --- */}
+                {/* --- SEKSI EKSPOR / LAPORAN (Hidden for Zoom) ---
                 {roomType !== "online" && (
                   <div style={{ 
                     padding: '0.2rem 1rem', 
@@ -365,7 +365,7 @@ export default function BookingDetailModal({ booking, onClose, onRefresh, roomTy
                       </button>
                     </div>
                   </div>
-                )}
+                )} */}
 
                 {/* --- SEKSI KONSUMSI --- */}
                 {booking.consumption?.requested && (

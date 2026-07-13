@@ -195,7 +195,7 @@ export default function Home() {
                     id="email"
                     type="email"
                     className={styles.input}
-                    placeholder="nama@pln.co.id"
+                    placeholder="nama@gmail.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     autoComplete="email"

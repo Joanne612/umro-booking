@@ -148,7 +148,7 @@ export default function VehicleBookingModal({ isOpen, onClose, onSuccess, editBo
                   type="radio" 
                   name="tripType" 
                   checked={formData.tripType === "one_way"} 
-                  onChange={() => setFormData({...formData, tripType: "one_way"})}
+                  onChange={() => setFormData({...formData, tripType: "one_way", endDate: formData.date})}
                   style={{ width: '18px', height: '18px', accentColor: 'var(--primary)' }}
                 />
                 Sekali Jalan
@@ -168,7 +168,7 @@ export default function VehicleBookingModal({ isOpen, onClose, onSuccess, editBo
                   setFormData(prev => ({
                     ...prev, 
                     date: newDate,
-                    endDate: prev.endDate < newDate ? newDate : prev.endDate
+                    endDate: prev.tripType === "one_way" ? newDate : (prev.endDate < newDate ? newDate : prev.endDate)
                   }));
                 }} 
                 className={styles.textInput} 
@@ -180,9 +180,11 @@ export default function VehicleBookingModal({ isOpen, onClose, onSuccess, editBo
                 type="date" 
                 required 
                 min={formData.date}
-                value={formData.endDate} 
+                value={formData.tripType === "one_way" ? formData.date : formData.endDate} 
                 onChange={e => setFormData({...formData, endDate: e.target.value})} 
-                className={styles.textInput} 
+                className={styles.textInput}
+                disabled={formData.tripType === "one_way"}
+                style={formData.tripType === "one_way" ? { opacity: 0.6, cursor: 'not-allowed', background: '#F1F5F9' } : {}}
               />
             </div>
           </div>
