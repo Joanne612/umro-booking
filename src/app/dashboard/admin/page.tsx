@@ -41,6 +41,10 @@ export default function AdminPage() {
   const [userDeletePending, setUserDeletePending] = useState<{ uid: string; name: string } | null>(null);
   const [userDeleting, setUserDeleting] = useState(false);
 
+  // Room Deletion State
+  const [roomDeletePending, setRoomDeletePending] = useState<{ id: string; name: string } | null>(null);
+  const [roomDeleting, setRoomDeleting] = useState(false);
+
   // Create User Account State
   const [showCreateUser, setShowCreateUser] = useState(false);
   const [createUserForm, setCreateUserForm] = useState({
@@ -100,17 +104,24 @@ export default function AdminPage() {
     }
   };
 
-  const handleDelete = async (id: string, name: string) => {
-    if (confirm(`Peringatan: Apakah Bapak/Ibu yakin ingin menghapus ruangan "${name}" secara permanen? Ruangan dengan reservasi aktif tidak akan bisa dihapus.`)) {
-      try {
-        await deleteRoom(id);
-        showToast("Ruangan berhasil dihapus!", "success");
-        fetchRooms();
-      } catch (error: any) {
-        showToast(error.message, "error");
-      }
-    }
-  };
+const handleDeleteRequest = (id: string, name: string) => {
+   setRoomDeletePending({ id, name });
+ };
+
+ const confirmRoomDelete = async () => {
+   if (!roomDeletePending) return;
+   setRoomDeleting(true);
+   try {
+     await deleteRoom(roomDeletePending.id);
+     showToast("Ruangan berhasil dihapus!", "success");
+     setRoomDeletePending(null);
+     fetchRooms();
+   } catch (error: any) {
+     showToast(error.message, "error");
+   } finally {
+     setRoomDeleting(false);
+   }
+};
 
   const handleRoleChangeRequest = (uid: string, name: string, newRole: "admin" | "asman" | "koordinator_driver" | "staff_umum" | "user" | "view") => {
     if (uid === user?.uid) {
@@ -200,8 +211,8 @@ export default function AdminPage() {
 
   // Filter users based on search
   const filteredUsers = users.filter(u =>
-    u.name.toLowerCase().includes(userSearch.toLowerCase()) ||
-    u.email?.toLowerCase().includes(userSearch.toLowerCase())
+    (u.name ?? "").toLowerCase().includes(userSearch.toLowerCase()) ||
+    (u.email ?? "").toLowerCase().includes(userSearch.toLowerCase())
   );
 
   if (userRole !== "admin") {
@@ -381,7 +392,7 @@ export default function AdminPage() {
                             Edit
                           </button>
                           <button 
-                            onClick={() => handleDelete(room.id, room.name)}
+                            onClick={() => handleDeleteRequest(room.id, room.name)}
                             style={{ padding: '0.4rem 0.8rem', background: '#FEE2E2', color: '#EF4444', border: 'none', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontWeight: 600, fontSize: '0.8rem' }}
                           >
                             Hapus
@@ -604,9 +615,9 @@ export default function AdminPage() {
                     <td style={{ padding: '1rem' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                         <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'var(--primary-light)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', fontWeight: 700 }}>
-                          {u.name.charAt(0).toUpperCase()}
+                          {(u.name ?? "?").charAt(0).toUpperCase()}
                         </div>
-                        <span style={{ fontWeight: 600 }}>{u.name}</span>
+                        <span style={{ fontWeight: 600 }}>{u.name || "(Tanpa Nama)"}</span>
                       </div>
                     </td>
                     <td style={{ padding: '1rem', color: 'var(--text-muted)', fontSize: '0.9rem' }}>{u.email}</td>
@@ -629,13 +640,18 @@ export default function AdminPage() {
                         onChange={(e) => handleRoleChangeRequest(u.uid, u.name, e.target.value as any)}
                         disabled={u.uid === user?.uid}
                         style={{
+                          width: '160px',
+                          maxWidth: '100%',
                           padding: '0.5rem',
                           borderRadius: 'var(--radius-md)',
                           border: '1px solid var(--border)',
                           background: 'white',
                           fontSize: '0.875rem',
                           fontWeight: 600,
-                          cursor: u.uid === user?.uid ? 'not-allowed' : 'pointer'
+                          cursor: u.uid === user?.uid ? 'not-allowed' : 'pointer',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
                         }}
                       >
                         <option value="user">User (Booking)</option>
@@ -765,6 +781,19 @@ export default function AdminPage() {
         cancelLabel="Batal"
         type="danger"
         isLoading={userDeleting}
+      />
+      
+      {/* Room Deletion Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={!!roomDeletePending}
+        onClose={() => setRoomDeletePending(null)}
+        onConfirm={confirmRoomDelete}
+        title="Hapus Ruangan"
+        message={`Apakah Bapak/Ibu yakin ingin menghapus ruangan "${roomDeletePending?.name}" secara permanen? Ruangan dengan reservasi aktif tidak akan bisa dihapus.`}
+        confirmLabel="Ya, Hapus Ruangan"
+        cancelLabel="Batal"
+        type="danger"
+        isLoading={roomDeleting}
       />
     </div>
   );

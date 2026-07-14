@@ -144,7 +144,7 @@ export default function Home() {
                       id="resetEmail"
                       type="email"
                       className={styles.input}
-                      placeholder="email@pln.co.id"
+                      placeholder="email@gmail.com"
                       value={resetEmail}
                       onChange={(e) => setResetEmail(e.target.value)}
                       disabled={resetLoading}

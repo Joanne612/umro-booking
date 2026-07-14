@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import {
   getUserBookings,
@@ -94,19 +94,48 @@ export default function MyBookingsPage() {
     fetchData();
 
     // Subscribe to data based on role
-    const unsubRooms = userRole === "admin"
+    const canViewAllRooms = [
+      "admin",
+      "asman",
+      "staff_umum",
+      "user",
+    ].includes(userRole ?? "");
+
+    const unsubRooms = canViewAllRooms
       ? subscribeToAllBookings((data) => setRoomBookings(data))
       : subscribeToUserBookings(user.uid, (data) => setRoomBookings(data));
+    
+    const canViewAllVehicles = [
+      "admin",
+      "koordinator_driver",
+      "staff_umum",
+      "asman",
+      "user",
+    ].includes(userRole ?? "");
 
-    const unsubVehicles = userRole === "admin"
+    const unsubVehicles = canViewAllVehicles
       ? subscribeToAllVehicles((data) => setVehicles(data))
       : subscribeToUserVehicles(user.uid, (data) => setVehicles(data));
 
-    const unsubItems = userRole === "admin"
-      ? subscribeToAllItems((data) => { setItems(data); })
-      : subscribeToUserItems(user.uid, (data) => { setItems(data); });
+    const canViewAllItems = [
+      "admin",
+      "asman",
+      "staff_umum",
+      "user",
+    ].includes(userRole ?? "");
 
-    const unsubMaint = userRole === "admin"
+    const unsubItems = canViewAllItems
+    ? subscribeToAllItems((data) => { setItems(data); })
+    : subscribeToUserItems(user.uid, (data) => { setItems(data); });
+
+    const canViewAllMaint = [
+      "admin",
+      "asman",
+      "staff_umum",
+      "user",
+    ].includes(userRole ?? "");
+
+    const unsubMaint = canViewAllMaint
       ? subscribeToAllMaintenanceRequests((data) => { setMaintenanceRequests(data); setLoading(false); })
       : subscribeToUserMaintenanceRequests(user.uid, (data) => { setMaintenanceRequests(data); setLoading(false); });
 
@@ -234,6 +263,22 @@ export default function MyBookingsPage() {
       return new Date(dateB).getTime() - new Date(dateA).getTime();
     });
   })();
+
+  // Export Vehicles to Excel
+  const exportPanelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!showExportPanel) return;
+
+    const handleClickOutside = (event: MouseEvent) => {
+      if (exportPanelRef.current && !exportPanelRef.current.contains(event.target as Node)) {
+        setShowExportPanel(false);
+      }
+    };
+
+  document.addEventListener('mousedown', handleClickOutside);
+  return () => document.removeEventListener('mousedown', handleClickOutside);
+}, [showExportPanel]);
 
   // Cancellation Handling
   const openCancelConfirm = (id: string, type: TabType, groupId?: string) => {
@@ -375,7 +420,7 @@ export default function MyBookingsPage() {
 
           {/* Tombol export Excel, khusus tab vehicle */}
           {activeTab === 'vehicle' && (
-          <div style={{ position: 'relative' }}>
+          <div ref={exportPanelRef} style={{ position: 'relative' }}>
             <button
               onClick={() => {
                 if (!showExportPanel) {

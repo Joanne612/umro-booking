@@ -703,7 +703,6 @@ export const updateBookingLink = async (bookingId: string, link: string) => {
   await updateDoc(docRef, { meetingLink: link });
 };
 
-
 export const getBookingsByGroupId = async (groupId: string): Promise<BookingData[]> => {
   if (!db) return [];
   const q = query(collection(db, "bookings"), where("groupId", "==", groupId));
@@ -1229,23 +1228,15 @@ export const subscribeToRescheduledBookings = (callback: (data: BookingData[]) =
   });
 };
 
-export const subscribeToPendingConsumption = (callback: (data: BookingData[]) => void) => {
+export const subscribeToConsumptionByStatus = (
+  statuses: string[],
+  callback: (data: BookingData[]) => void
+) => {
   if (!db) return () => { };
   const q = query(
     collection(db, "bookings"),
-    where("status", "==", "pending")
-  );
-  return onSnapshot(q, (snap) => {
-    const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as BookingData));
-    callback(data);
-  });
-};
-
-export const subscribeToApprovedConsumption = (callback: (data: BookingData[]) => void) => {
-  if (!db) return () => { };
-  const q = query(
-    collection(db, "bookings"),
-    where("status", "==", "approved")
+    where("consumption.status", "in", statuses),
+    where("consumption.requested", "==", true)
   );
   return onSnapshot(q, (snap) => {
     const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as BookingData));

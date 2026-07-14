@@ -4,8 +4,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import {
   getDashboardStats,
-  subscribeToPendingConsumption,
-  subscribeToApprovedConsumption,
+  subscribeToConsumptionByStatus,
   subscribeToPendingItemRequests,
   subscribeToPendingVehicles,
   subscribeToWaitingAsmanVehicles,
@@ -57,13 +56,13 @@ export default function DashboardMonitoring() {
 
     // REAL-TIME ACTION LISTS
     if (userRole === "staff_umum") {
-        unsubs.push(subscribeToApprovedConsumption(data => {
+        unsubs.push(subscribeToConsumptionByStatus(["pending", "approved"], data => {
             setPendingItems(prev => {
                 const filtered = prev.filter(i => i.type !== "Konsumsi");
                 return [...filtered, ...data.slice(0, 2).map(c => ({ id: c.id, title: c.title, type: "Konsumsi", user: c.userName, link: "/dashboard/approvals" }))];
             });
         }));
-        unsubs.push(subscribeToPendingItemRequests(["approved"], data => {
+        unsubs.push(subscribeToPendingItemRequests(["pending", "approved"], data => {
             setPendingItems(prev => {
                 const filtered = prev.filter(i => i.type !== "Barang");
                 return [...filtered, ...data.slice(0, 2).map(i => ({ id: i.id, title: i.title, type: "Barang", user: i.userName, link: "/dashboard/approvals" }))];
@@ -74,7 +73,7 @@ export default function DashboardMonitoring() {
             setPendingItems(data.slice(0, 4).map(v => ({ id: v.id, title: v.event, type: "Kendaraan", user: v.userName, link: "/dashboard/vehicles/approvals" })));
         }));
     } else if (userRole === "admin" || userRole === "asman") {
-        unsubs.push(subscribeToPendingConsumption(data => {
+        unsubs.push(subscribeToConsumptionByStatus(["pending", "approved"], data => {
             setPendingItems(prev => {
                 const filtered = prev.filter(i => i.type !== "Konsumsi");
                 return [...filtered, ...data.slice(0, 2).map(c => ({ id: c.id, title: c.title, type: "Konsumsi", user: c.userName, link: "/dashboard/approvals" }))];
@@ -130,7 +129,7 @@ export default function DashboardMonitoring() {
             setRescheduledBookings(data);
         }));
     }
-
+    
     return () => unsubs.forEach(unsub => unsub());
   }, [user, userRole]);
 
