@@ -230,7 +230,8 @@ export const subscribeToMaintenanceRequests = (
   if (!db) return () => { };
   const q = query(
     collection(db, "maintenance_requests"),
-    where("status", "in", statuses)
+    where("status", "in", statuses),
+    orderBy("createdAt", "desc")
   );
   return onSnapshot(q, (snap) => {
     const data = snap.docs.map((d) => ({ id: d.id, ...d.data() } as MaintenanceRequest));
@@ -245,7 +246,8 @@ export const subscribeToUserMaintenanceRequests = (
   if (!db) return () => { };
   const q = query(
     collection(db, "maintenance_requests"),
-    where("userId", "==", userId)
+    where("userId", "==", userId),
+    orderBy("createdAt", "desc")
   );
   return onSnapshot(q, (snap) => {
     const data = snap.docs.map((d) => ({ id: d.id, ...d.data() } as MaintenanceRequest));
@@ -257,7 +259,9 @@ export const subscribeToAllMaintenanceRequests = (
   callback: (data: MaintenanceRequest[]) => void
 ) => {
   if (!db) return () => { };
-  const q = query(collection(db, "maintenance_requests"));
+  const q = query(collection(db, "maintenance_requests"), 
+    orderBy("createdAt", "desc")
+  );
   return onSnapshot(q, (snap) => {
     const data = snap.docs.map((d) => ({ id: d.id, ...d.data() } as MaintenanceRequest));
     callback(data.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)));
@@ -625,7 +629,7 @@ export const subscribeToBookingsRange = (startDate: string, endDate: string, cal
 
 export const subscribeToDrivers = (callback: (data: Driver[]) => void) => {
   if (!db) return () => { };
-  const q = query(collection(db, "drivers"), orderBy("createdAt", "desc"));
+  const q = query(collection(db, "drivers"));
   return onSnapshot(q, (snap) => {
     const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Driver));
     callback(data);
@@ -641,7 +645,7 @@ export const getUserBookings = async (uid: string): Promise<BookingData[]> => {
 
 export const subscribeToFleet = (callback: (data: FleetVehicle[]) => void) => {
   if (!db) return () => { };
-  const q = query(collection(db, "fleet_vehicles"), orderBy("createdAt", "desc"));
+  const q = query(collection(db, "fleet_vehicles"));
   return onSnapshot(q, (snap) => {
     const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as FleetVehicle));
     callback(data);
@@ -730,7 +734,11 @@ export const getPendingConsumptionBookings = async (): Promise<BookingData[]> =>
   );
 
   const snapshot = await getDocs(q);
-  return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as BookingData));
+  const bookings = snapshot.docs.map(
+    (doc) => ({ id: doc.id, ...doc.data() } as BookingData)
+  );
+
+  return bookings;
 };
 
 export const getConsumptionHistory = async (): Promise<BookingData[]> => {
@@ -740,7 +748,8 @@ export const getConsumptionHistory = async (): Promise<BookingData[]> => {
     bookingsRef,
     where("status", "==", "active"),
     where("consumption.requested", "==", true),
-    where("consumption.status", "in", ["approved", "rejected", "completed"])
+    where("consumption.status", "in", ["approved", "rejected", "completed"]),
+    orderBy("date", "asc")
   );
 
   const snapshot = await getDocs(q);
@@ -757,7 +766,8 @@ export const getApprovedConsumptionBookings = async (): Promise<BookingData[]> =
     bookingsRef,
     where("status", "==", "active"),
     where("consumption.requested", "==", true),
-    where("consumption.status", "==", "approved")
+    where("consumption.status", "==", "approved"),
+    orderBy("date", "asc")
   );
 
   const snapshot = await getDocs(q);
@@ -775,7 +785,8 @@ export const subscribeToConsumptionBookings = (
     collection(db, "bookings"),
     where("status", "==", "active"),
     where("consumption.requested", "==", true),
-    where("consumption.status", "in", statuses)
+    where("consumption.status", "in", statuses),
+    orderBy("date", "asc")
   );
   return onSnapshot(q, (snap) => {
     const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as BookingData));
@@ -845,7 +856,8 @@ export const subscribeToPendingVehicles = (callback: (data: VehicleBooking[]) =>
   if (!db) return () => { };
   const q = query(
     collection(db, "vehicle_bookings"),
-    where("status", "==", "pending")
+    where("status", "==", "pending"),
+    orderBy("date", "asc")
   );
 
   return onSnapshot(q, (snap) => {
@@ -859,7 +871,8 @@ export const subscribeToWaitingAsmanVehicles = (callback: (data: VehicleBooking[
   const q = query(
     collection(db, "vehicle_bookings"),
     where("status", "==", "approved"),
-    where("asmanAcknowledge", "==", false)
+    where("asmanAcknowledge", "==", false),
+    orderBy("date", "asc")
   );
 
   return onSnapshot(q, (snap) => {
@@ -872,7 +885,8 @@ export const subscribeToVehicleHistory = (callback: (data: VehicleBooking[]) => 
   if (!db) return () => { };
   const q = query(
     collection(db, "vehicle_bookings"),
-    where("status", "in", ["waiting_asman", "approved", "rejected"])
+    where("status", "in", ["waiting_asman", "approved", "rejected"]),
+    orderBy("date", "asc")
   );
 
   return onSnapshot(q, (snap) => {
@@ -1140,7 +1154,10 @@ export const getPendingVehicleBookings = async (): Promise<VehicleBooking[]> => 
 
 export const subscribeToUserBookings = (uid: string, callback: (data: BookingData[]) => void) => {
   if (!db) return () => { };
-  const q = query(collection(db, "bookings"), where("userId", "==", uid));
+  const q = query(collection(db, "bookings"), 
+    where("userId", "==", uid),
+    orderBy("date", "asc")
+  );
   return onSnapshot(q, (snap) => {
     const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as BookingData));
     callback(data);
@@ -1149,7 +1166,9 @@ export const subscribeToUserBookings = (uid: string, callback: (data: BookingDat
 
 export const subscribeToAllBookings = (callback: (data: BookingData[]) => void) => {
   if (!db) return () => { };
-  const q = query(collection(db, "bookings"));
+  const q = query(collection(db, "bookings"), 
+    orderBy("date", "asc")
+  );
   return onSnapshot(q, (snap) => {
     const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as BookingData));
     callback(data);
@@ -1158,7 +1177,10 @@ export const subscribeToAllBookings = (callback: (data: BookingData[]) => void) 
 
 export const subscribeToUserVehicles = (uid: string, callback: (data: VehicleBooking[]) => void) => {
   if (!db) return () => { };
-  const q = query(collection(db, "vehicle_bookings"), where("userId", "==", uid));
+  const q = query(collection(db, "vehicle_bookings"), 
+    where("userId", "==", uid),
+    orderBy("date", "asc")
+  );
   return onSnapshot(q, (snap) => {
     const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as VehicleBooking));
     callback(data);
@@ -1167,7 +1189,9 @@ export const subscribeToUserVehicles = (uid: string, callback: (data: VehicleBoo
 
 export const subscribeToAllVehicles = (callback: (data: VehicleBooking[]) => void) => {
   if (!db) return () => { };
-  const q = query(collection(db, "vehicle_bookings"));
+  const q = query(collection(db, "vehicle_bookings"), 
+    orderBy("date", "asc")
+  );
   return onSnapshot(q, (snap) => {
     const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as VehicleBooking));
     callback(data);
@@ -1176,7 +1200,9 @@ export const subscribeToAllVehicles = (callback: (data: VehicleBooking[]) => voi
 
 export const subscribeToUserItems = (uid: string, callback: (data: ItemRequest[]) => void) => {
   if (!db) return () => { };
-  const q = query(collection(db, "item_requests"), where("userId", "==", uid));
+  const q = query(collection(db, "item_requests"), 
+    where("userId", "==", uid)
+  );
   return onSnapshot(q, (snap) => {
     const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as ItemRequest));
     callback(data);
@@ -1185,7 +1211,8 @@ export const subscribeToUserItems = (uid: string, callback: (data: ItemRequest[]
 
 export const subscribeToAllItems = (callback: (data: ItemRequest[]) => void) => {
   if (!db) return () => { };
-  const q = query(collection(db, "item_requests"));
+  const q = query(collection(db, "item_requests")
+  );
   return onSnapshot(q, (snap) => {
     const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as ItemRequest));
     callback(data);
@@ -1215,7 +1242,8 @@ export const subscribeToRescheduledBookings = (callback: (data: BookingData[]) =
   const q = query(
     collection(db, "bookings"),
     where("status", "==", "active"),
-    where("isRescheduled", "==", true)
+    where("isRescheduled", "==", true),
+    orderBy("date", "asc")
   );
 
   return onSnapshot(q, (snap) => {
@@ -1236,7 +1264,8 @@ export const subscribeToConsumptionByStatus = (
   const q = query(
     collection(db, "bookings"),
     where("consumption.status", "in", statuses),
-    where("consumption.requested", "==", true)
+    where("consumption.requested", "==", true),
+    orderBy("date", "asc")
   );
   return onSnapshot(q, (snap) => {
     const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as BookingData));
@@ -1248,7 +1277,8 @@ export const subscribeToPendingItemRequests = (status: string[], callback: (data
   if (!db) return () => { };
   const q = query(
     collection(db, "item_requests"),
-    where("status", "in", status)
+    where("status", "in", status),
+    orderBy("date", "asc")
   );
   return onSnapshot(q, (snap) => {
     const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as ItemRequest));
@@ -1264,7 +1294,8 @@ export const subscribeToIncompleteZoom = (callback: (data: BookingData[]) => voi
   // termasuk memfilter ruangan online/hybrid.
   const q = query(
     collection(db, "bookings"),
-    where("status", "==", "active")
+    where("status", "==", "active"),
+    orderBy("date", "asc")
   );
 
   return onSnapshot(q, (snap) => {
@@ -1321,7 +1352,8 @@ export const getDashboardStats = async (userId: string, userRole: string) => {
         collection(db, "bookings"),
         where("status", "==", "active"),
         where("consumption.requested", "==", true),
-        where("consumption.status", "==", statusToFetch)
+        where("consumption.status", "==", statusToFetch),
+        orderBy("date", "asc")
       );
       const countSnap = await getCountFromServer(q);
       pendingConsCount = countSnap.data().count;
@@ -1331,7 +1363,8 @@ export const getDashboardStats = async (userId: string, userRole: string) => {
         where("userId", "==", userId),
         where("status", "==", "active"),
         where("consumption.requested", "==", true),
-        where("consumption.status", "==", "pending")
+        where("consumption.status", "==", "pending"),
+        orderBy("date", "asc")
       );
       const countSnap = await getCountFromServer(q);
       pendingConsCount = countSnap.data().count;
@@ -1346,7 +1379,11 @@ export const getDashboardStats = async (userId: string, userRole: string) => {
       const countSnap = await getCountFromServer(q);
       pendingItemsCount = countSnap.data().count;
     } else {
-      const q = query(itemsRef, where("userId", "==", userId), where("status", "==", "pending"));
+      const q = query(itemsRef, 
+        where("userId", "==", userId), 
+        where("status", "==", "pending"),
+        orderBy("date", "asc")
+      );
       const countSnap = await getCountFromServer(q);
       pendingItemsCount = countSnap.data().count;
     }
@@ -1359,7 +1396,11 @@ export const getDashboardStats = async (userId: string, userRole: string) => {
       if (userRole === "koordinator_driver" || userRole === "admin") {
         q = query(vehiclesRef, where("status", "==", "pending"));
       } else if (userRole === "asman") {
-        q = query(vehiclesRef, where("status", "==", "approved"), where("asmanAcknowledge", "==", false));
+        q = query(vehiclesRef, 
+          where("status", "==", "approved"), 
+          where("asmanAcknowledge", "==", false),
+          orderBy("date", "asc")
+        );
       }
 
       if (q) {
@@ -1367,7 +1408,11 @@ export const getDashboardStats = async (userId: string, userRole: string) => {
         pendingVehiclesCount = countSnap.data().count;
       }
     } else {
-      const q = query(vehiclesRef, where("userId", "==", userId), where("status", "==", "pending"));
+      const q = query(vehiclesRef, 
+        where("userId", "==", userId), 
+        where("status", "==", "pending"),
+        orderBy("date", "asc")
+      );
       const countSnap = await getCountFromServer(q);
       pendingVehiclesCount = countSnap.data().count;
     }
@@ -1476,7 +1521,9 @@ export const getMyRecentActivity = async (userId: string) => {
 export const getDriverRates = async (): Promise<DriverRate[]> => {
   if (!db) return [];
   try {
-    const q = query(collection(db, "driver_rates"), orderBy("createdAt", "asc"));
+    const q = query(collection(db, "driver_rates"), 
+      orderBy("date", "asc")
+    );
     const snap = await getDocs(q);
     return snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as DriverRate));
   } catch (error) {
@@ -1538,12 +1585,13 @@ export const subscribeToAssignedTrips = (uid: string, email: string | null, call
       collection(db, "driver_trips"),
       or(
         where("driverUid", "==", uid),
-        where("driverEmail", "==", email.toLowerCase())
+        where("driverEmail", "==", email.toLowerCase()),
       )
     ) :
     query(
       collection(db, "driver_trips"),
-      where("driverUid", "==", uid)
+      where("driverUid", "==", uid),
+      orderBy("date", "asc")
     );
 
   return onSnapshot(q, (snap) => {
@@ -1595,7 +1643,9 @@ export const getDriverTrips = async (): Promise<DriverTrip[]> => {
 
 export const subscribeToDriverTrips = (callback: (data: DriverTrip[]) => void) => {
   if (!db) return () => { };
-  const q = query(collection(db, "driver_trips"), orderBy("createdAt", "desc"));
+  const q = query(collection(db, "driver_trips"), 
+    orderBy("date", "asc")
+  );
 
   return onSnapshot(q, (snap) => {
     const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as DriverTrip));

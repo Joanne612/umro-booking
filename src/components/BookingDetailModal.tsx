@@ -288,7 +288,7 @@ export default function BookingDetailModal({ booking, onClose, onRefresh, roomTy
                               📋 Salin Undangan
                             </button>
 
-                            {/* Attempt to extract first URL for a quick-join button */}
+                            {/* Shortcut for a quick-join button. Must be a real clickable link */}
                             {(() => {
                               const urlMatch = currentMeetingLink.match(/https?:\/\/[^\s]+/);
                               if (urlMatch) {
@@ -330,7 +330,7 @@ export default function BookingDetailModal({ booking, onClose, onRefresh, roomTy
                   )}
                 </div>
 
-                {/* --- SEKSI EKSPOR / LAPORAN (Hidden for Zoom) ---
+                {/* --- SEKSI EKSPOR / LAPORAN (Hidden for Zoom) --- */}
                 {roomType !== "online" && (
                   <div style={{ 
                     padding: '0.2rem 1rem', 
@@ -342,7 +342,7 @@ export default function BookingDetailModal({ booking, onClose, onRefresh, roomTy
                     border: '1px dashed var(--border)'
                   }}>
                     <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#94A3B8', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
-                       opsi laporan:
+                       Laporan:
                     </div>
                     <div style={{ display: 'flex', gap: '0.5rem' }}>
                       <button 
@@ -365,7 +365,7 @@ export default function BookingDetailModal({ booking, onClose, onRefresh, roomTy
                       </button>
                     </div>
                   </div>
-                )} */}
+                )}
 
                 {/* --- SEKSI KONSUMSI --- */}
                 {booking.consumption?.requested && (

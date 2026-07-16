@@ -200,7 +200,7 @@ export default function BookingPage() {
           booking={selectedBooking}
           roomType={selectedType || undefined}
           onClose={() => setSelectedBooking(null)}
-          onRefresh={() => {}} /* onSnapshot will handle auto-refresh */
+          onRefresh={() => {}} 
         />
       )}
     </div>

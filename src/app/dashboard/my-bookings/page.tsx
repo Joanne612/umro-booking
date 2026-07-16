@@ -464,7 +464,7 @@ export default function MyBookingsPage() {
               }}>
                 <div style={{ fontSize: '0.8rem', fontWeight: 800, color: '#334155', marginBottom: '0.75rem' }}>
                   Pilih Rentang Tanggal
-                </div>
+                </div> 
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', marginBottom: '1rem' }}>
                   <div>

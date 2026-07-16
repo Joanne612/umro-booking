@@ -562,28 +562,7 @@ export default function ApprovalsPage() {
                   {viewMode === "pending" ? (
                     isPastDate(booking.date) ? (
                       <div style={{ display: 'flex', width: '100%', justifyContent: 'space-between', alignItems: 'center' }}>
-                        {(userRole === 'admin' || userRole === 'asman' || userRole === 'staff_umum') && (
-                          <button 
-                            onClick={() => exportConsumptionToPDF([booking])}
-                            title="Cetak PDF Detail Agenda"
-                            style={{ 
-                              padding: '0.5rem 0.75rem', 
-                              border: '1px solid #EF4444', 
-                              color: '#EF4444', 
-                              background: 'white',
-                              borderRadius: 'var(--radius-md)',
-                              fontSize: '0.8125rem',
-                              fontWeight: 700,
-                              cursor: 'pointer',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '0.3rem'
-                            }}
-                          >
-                            📄 PDF
-                          </button>
-                        )}
-                        <span style={{ fontSize: '0.8125rem', color: '#EF4444', fontStyle: 'italic', fontWeight: 600 }}>Jadwal Telah Berlalu (Tidak Dapat Diproses)</span>
+                        <span style={{ fontSize: '0.8125rem', color: '#EF4444', fontStyle: 'italic', fontWeight: 600, marginLeft: 'auto'}}>Jadwal Telah Berlalu (Tidak Dapat Diproses)</span>
                       </div>
                     ) : (
                     <>

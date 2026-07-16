@@ -621,7 +621,9 @@ export default function AssignedTripsPage() {
                   onChange={(e) => {
                     const val = e.target.value;
                     setKmValue(val);
-                    if (kmModal.type === 'end' && val && kmModal.trip?.startKm !== undefined) {
+                    if (val && Number(val) < 0) {
+                      setKmError("KM harus > 0");
+                    } else if (kmModal.type === 'end' && val && kmModal.trip?.startKm !== undefined) {
                       if (Number(val) < kmModal.trip.startKm) {
                         setKmError(`KM Akhir harus ≥ KM Awal (${kmModal.trip.startKm})`);
                       } else {
